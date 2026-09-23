@@ -10,6 +10,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-trello}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - backend
     healthcheck:
@@ -30,7 +32,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -50,7 +52,7 @@ services:
       retries: 5
 
   createbuckets:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
@@ -68,7 +70,7 @@ services:
       "
 
   api:
-    image: ghcr.io/${GHCR_OWNER:-fdhhhdjd}/trello-clone-backend:${IMAGE_TAG:-main}
+    image: ghcr.io/${GHCR_OWNER:-nguyen121294}/trello-clone-backend:${IMAGE_TAG:-main}
     restart: unless-stopped
     env_file:
       - .env
@@ -92,7 +94,7 @@ services:
       start_period: 30s
 
   frontend-user:
-    image: ghcr.io/${GHCR_OWNER:-fdhhhdjd}/trello-clone-frontend-user:${IMAGE_TAG:-main}
+    image: ghcr.io/${GHCR_OWNER:-nguyen121294}/trello-clone-frontend-user:${IMAGE_TAG:-main}
     restart: unless-stopped
     depends_on:
       - api
@@ -103,7 +105,7 @@ services:
       - backend
 
   frontend-admin:
-    image: ghcr.io/${GHCR_OWNER:-fdhhhdjd}/trello-clone-frontend-admin:${IMAGE_TAG:-main}
+    image: ghcr.io/${GHCR_OWNER:-nguyen121294}/trello-clone-frontend-admin:${IMAGE_TAG:-main}
     restart: unless-stopped
     depends_on:
       - api
@@ -114,7 +116,7 @@ services:
       - backend
 
   landing:
-    image: ghcr.io/${GHCR_OWNER:-fdhhhdjd}/trello-clone-landing:${IMAGE_TAG:-main}
+    image: ghcr.io/${GHCR_OWNER:-nguyen121294}/trello-clone-landing:${IMAGE_TAG:-main}
     restart: unless-stopped
     environment:
       LANDING_API_URL: http://api:4000

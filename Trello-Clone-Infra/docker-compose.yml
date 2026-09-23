@@ -30,7 +30,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -50,7 +50,7 @@ services:
       retries: 5
 
   createbuckets:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
@@ -95,7 +95,7 @@ services:
   # Edge gateway: single entry on :80, routes by Host (subdomain) to each app.
   # Put Cloudflare in front of this. SSL mode "Flexible" (CF<->origin HTTP).
   gateway:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     restart: unless-stopped
     depends_on:
       - frontend-user
