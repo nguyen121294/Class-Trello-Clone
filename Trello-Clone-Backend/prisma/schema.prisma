@@ -21,14 +21,17 @@ model User {
   tokenVersion Int      @default(0) @map("token_version")
   twofaSecret  String?  @map("twofa_secret")
   settings     Json?
+  orgId        String?  @map("org_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  org           Organization?  @relation(fields: [orgId], references: [id], onDelete: SetNull)
   refreshTokens RefreshToken[]
   userRoles     UserRole[]     @relation("UserRoles")
   grantedRoles  UserRole[]     @relation("GrantedRoles")
   ownedWorkspaces Workspace[]  @relation("WorkspaceOwner")
   cardMembers   CardMember[]
+  cardAssignees CardAssignee[]
   comments      Comment[]
   attachments   Attachment[]
   activities    Activity[]
@@ -37,7 +40,9 @@ model User {
   cardWatchers  CardWatcher[]
   boardMembers  BoardMember[]
   reactions     Reaction[]
+  memberCheckins MemberWeeklyCheckin[]
 
+  @@index([orgId])
   @@map("users")
 }
 
@@ -145,6 +150,7 @@ model Workspace {
   id         String     @id @default(uuid()) @db.Uuid
   name       String
   ownerId    String     @map("owner_id") @db.Uuid
+  orgId      String?    @map("org_id") @db.Uuid
   visibility Visibility @default(private)
   isLocked   Boolean    @default(false) @map("is_locked")
   logoUrl    String?    @map("logo_url")
@@ -152,10 +158,12 @@ model Workspace {
   updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   owner   User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  org     Organization?     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   boards  Board[]
   invites WorkspaceInvite[]
 
   @@index([ownerId])
+  @@index([orgId])
   @@map("workspaces")
 }
 
@@ -174,25 +182,30 @@ model WorkspaceInvite {
 }
 
 model Board {
-  id          String     @id @default(uuid()) @db.Uuid
-  workspaceId String     @map("workspace_id") @db.Uuid
-  name        String
-  description String?
-  background  String?
-  visibility  Visibility @default(workspace)
-  archived    Boolean    @default(false)
-  isTemplate  Boolean    @default(false) @map("is_template")
-  cardSeq     Int        @default(0) @map("card_seq")
-  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String     @id @default(uuid()) @db.Uuid
+  workspaceId    String     @map("workspace_id") @db.Uuid
+  name           String
+  description    String?
+  background     String?
+  googleDriveUrl String?    @map("google_drive_url")
+  goliveDate     DateTime?  @map("golive_date") @db.Date
+  visibility     Visibility @default(workspace)
+  archived       Boolean    @default(false)
+  isTemplate     Boolean    @default(false) @map("is_template")
+  cardSeq        Int        @default(0) @map("card_seq")
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  lists      List[]
-  labels     Label[]
-  activities Activity[]
-  stars      BoardStar[]
-  members    BoardMember[]
-  customFields CustomField[]
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lists          List[]
+  labels         Label[]
+  activities     Activity[]
+  stars          BoardStar[]
+  members        BoardMember[]
+  customFields   CustomField[]
+  milestones     Milestone[]
+  weeklyReports  WeeklyReport[]
+  memberCheckins MemberWeeklyCheckin[]
 
   @@index([workspaceId])
   @@map("boards")
@@ -256,32 +269,38 @@ model List {
 }
 
 model Card {
-  id          String    @id @default(uuid()) @db.Uuid
-  listId      String    @map("list_id") @db.Uuid
-  number      Int?
-  title       String
-  description String?
-  status      String?
-  priority    CardPriority @default(none)
-  isTemplate  Boolean   @default(false) @map("is_template")
-  position    Float
-  dueDate     DateTime? @map("due_date") @db.Timestamptz(6)
-  startDate   DateTime? @map("start_date") @db.Timestamptz(6)
-  coverUrl    String?   @map("cover_url")
-  archived    Boolean   @default(false)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String       @id @default(uuid()) @db.Uuid
+  listId         String       @map("list_id") @db.Uuid
+  number         Int?
+  title          String
+  description    String?
+  status         String?
+  priority       CardPriority @default(none)
+  isTemplate     Boolean      @default(false) @map("is_template")
+  position       Float
+  dueDate        DateTime?    @map("due_date") @db.Timestamptz(6)
+  startDate      DateTime?    @map("start_date") @db.Timestamptz(6)
+  coverUrl       String?      @map("cover_url")
+  jiraUrl        String?      @map("jira_url")
+  expectedResult String?      @map("expected_result")
+  archived       Boolean      @default(false)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  list        List          @relation(fields: [listId], references: [id], onDelete: Cascade)
-  members     CardMember[]
-  cardLabels  CardLabel[]
-  checklists  Checklist[]
-  comments    Comment[]
-  attachments Attachment[]
-  activities  Activity[]
-  watchers    CardWatcher[]
-  fieldValues CustomFieldValue[]
-  reactions   Reaction[]
+  list                      List               @relation(fields: [listId], references: [id], onDelete: Cascade)
+  members                   CardMember[]
+  assignees                 CardAssignee[]
+  cardLabels                CardLabel[]
+  checklists                Checklist[]
+  comments                  Comment[]
+  attachments               Attachment[]
+  activities                Activity[]
+  watchers                  CardWatcher[]
+  fieldValues               CustomFieldValue[]
+  reactions                 Reaction[]
+  dependenciesAsPredecessor CardDependency[]   @relation("PredecessorCard")
+  dependenciesAsSuccessor   CardDependency[]   @relation("SuccessorCard")
+  weeklyReportTasks         WeeklyReportTask[]
 
   @@index([listId])
   @@map("cards")
@@ -509,3 +528,140 @@ model Notification {
   @@index([userId, read])
   @@map("notifications")
 }
+
+// ===== B2B SaaS Enterprise Models =====
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  code      String   @unique
+  plan      String   @default("starter") // starter | pro | enterprise
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users      User[]
+  workspaces Workspace[]
+
+  @@map("organizations")
+}
+
+model Milestone {
+  id            String    @id @default(uuid()) @db.Uuid
+  boardId       String    @map("board_id") @db.Uuid
+  title         String
+  targetDate    DateTime  @map("target_date") @db.Date
+  paymentAmount Decimal?  @map("payment_amount") @db.Decimal(15, 2)
+  isPaid        Boolean   @default(false) @map("is_paid")
+  status        String    @default("pending") // pending | achieved | overdue | paid
+  description   String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  board         Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  weeklyReports WeeklyReport[]
+
+  @@index([boardId, targetDate])
+  @@map("milestones")
+}
+
+model CardAssignee {
+  id           String   @id @default(uuid()) @db.Uuid
+  cardId       String   @map("card_id") @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  externalName String?  @map("external_name")
+  assigneeType String   @default("internal") @map("assignee_type") // internal | client
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  card Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@index([userId])
+  @@map("card_assignees")
+}
+
+model CardDependency {
+  id            String   @id @default(uuid()) @db.Uuid
+  predecessorId String   @map("predecessor_id") @db.Uuid
+  successorId   String   @map("successor_id") @db.Uuid
+  type          String   @default("FS") // FS: Finish-to-Start, SS: Start-to-Start
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  predecessor   Card     @relation("PredecessorCard", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor     Card     @relation("SuccessorCard", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([predecessorId, successorId])
+  @@index([successorId])
+  @@map("card_dependencies")
+}
+
+model WeeklyReport {
+  id              String   @id @default(uuid()) @db.Uuid
+  boardId         String   @map("board_id") @db.Uuid
+  weekNumber      Int      @map("week_number")
+  year            Int
+  startDate       DateTime @map("start_date") @db.Date
+  endDate         DateTime @map("end_date") @db.Date
+  nearMilestoneId String?  @map("near_milestone_id") @db.Uuid
+  weeksToGolive   Decimal? @map("weeks_to_golive") @db.Decimal(5, 1)
+  meetings        Json?    // Array: [{ date, topic, attendees, notes }]
+  pdfUrl          String?  @map("pdf_url")
+  status          String   @default("draft") // draft | published
+  createdById     String   @map("created_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  board         Board              @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  nearMilestone Milestone?         @relation(fields: [nearMilestoneId], references: [id], onDelete: SetNull)
+  tasks         WeeklyReportTask[]
+
+  @@unique([boardId, weekNumber, year])
+  @@index([boardId])
+  @@map("weekly_reports")
+}
+
+model WeeklyReportTask {
+  id                 String   @id @default(uuid()) @db.Uuid
+  reportId           String   @map("report_id") @db.Uuid
+  cardId             String   @map("card_id") @db.Uuid
+  scopeType          String   @map("scope_type") // last_week | this_week | special_module
+  moduleName         String?  @map("module_name")
+  expectedResult     String?  @map("expected_result")
+  internalPicsText   String?  @map("internal_pics_text")
+  clientPicsText     String?  @map("client_pics_text")
+  statusText         String?  @map("status_text") // Done | Doing | Pending | Cancel
+  progressEvaluation String?  @map("progress_evaluation") // Dung tien do | Tre X ngay
+  isCarriedOver      Boolean  @default(false) @map("is_carried_over")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  report WeeklyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  card   Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([cardId])
+  @@map("weekly_report_tasks")
+}
+
+model MemberWeeklyCheckin {
+  id          String   @id @default(uuid()) @db.Uuid
+  boardId     String   @map("board_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  weekNumber  Int      @map("week_number")
+  year        Int
+  doneText    String   @map("done_text")
+  planText    String   @map("plan_text")
+  blockerText String?  @map("blocker_text")
+  hoursWorked Decimal? @map("hours_worked") @db.Decimal(5, 1)
+  status      String   @default("submitted") // draft | submitted
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId, weekNumber, year])
+  @@index([boardId, weekNumber, year])
+  @@map("member_weekly_checkins")
+}
+

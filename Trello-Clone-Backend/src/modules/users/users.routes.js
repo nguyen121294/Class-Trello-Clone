@@ -39,6 +39,7 @@ usersRouter.get(
           isActive: true,
           settings: true,
           createdAt: true,
+          orgId: true,
         },
       }),
       getUserPermissions(authUser.id),

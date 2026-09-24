@@ -18,6 +18,8 @@ const CARD_SELECT = {
   position: true,
   dueDate: true,
   startDate: true,
+  jiraUrl: true,
+  expectedResult: true,
   coverUrl: true,
   archived: true,
   createdAt: true,
@@ -150,6 +152,15 @@ export async function getCardDetail(userId, cardId) {
           reactions: { select: { emoji: true, userId: true } },
         },
       },
+      assignees: {
+        select: {
+          id: true,
+          userId: true,
+          externalName: true,
+          assigneeType: true,
+          user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        },
+      },
       checklists: {
         orderBy: { position: "asc" },
         select: {
@@ -166,11 +177,12 @@ export async function getCardDetail(userId, cardId) {
     },
   });
 
-  const { cardLabels, members, watchers, fieldValues, ...rest } = card;
+  const { cardLabels, members, watchers, fieldValues, assignees, ...rest } = card;
   return {
     ...rest,
     labels: cardLabels.map((cl) => cl.label),
     members: members.map((m) => m.user),
+    assignees: assignees || [],
     watching: watchers.length > 0,
     fieldValues,
   };

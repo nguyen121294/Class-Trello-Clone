@@ -7,6 +7,8 @@ export const authRouter = Router();
 
 authRouter.get("/setup-status", ah(c.setupStatusHandler));
 authRouter.post("/setup", ah(c.setupHandler));
+authRouter.get("/check-org-code", ah(c.checkOrgCodeHandler));
+authRouter.post("/register-org", ah(c.registerOrgHandler));
 authRouter.post("/register", ah(c.registerHandler));
 authRouter.post("/login", ah(c.loginHandler));
 authRouter.post("/renew", ah(c.renewHandler));

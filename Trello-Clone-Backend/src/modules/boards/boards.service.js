@@ -255,15 +255,21 @@ export async function copyBoard(userId, boardId, name) {
 
 export async function updateBoard(userId, boardId, input) {
   await assertBoardAccess(userId, boardId, "ws_member");
+  const data = { ...input };
+  if (data.goliveDate !== undefined) {
+    data.goliveDate = data.goliveDate ? new Date(data.goliveDate) : null;
+  }
   return prisma.board.update({
     where: { id: boardId },
-    data: input,
+    data,
     select: {
       id: true,
       workspaceId: true,
       name: true,
       description: true,
       background: true,
+      googleDriveUrl: true,
+      goliveDate: true,
       visibility: true,
       archived: true,
       isTemplate: true,
@@ -289,6 +295,8 @@ export async function getBoardDetail(userId, boardId) {
       name: true,
       description: true,
       background: true,
+      googleDriveUrl: true,
+      goliveDate: true,
       visibility: true,
       archived: true,
       isTemplate: true,
@@ -323,6 +331,8 @@ export async function getBoardDetail(userId, boardId) {
               position: true,
               dueDate: true,
               startDate: true,
+              jiraUrl: true,
+              expectedResult: true,
               coverUrl: true,
               archived: true,
               createdAt: true,
@@ -330,6 +340,15 @@ export async function getBoardDetail(userId, boardId) {
               cardLabels: { select: { label: { select: { id: true, name: true, color: true } } } },
               members: {
                 select: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+              },
+              assignees: {
+                select: {
+                  id: true,
+                  userId: true,
+                  externalName: true,
+                  assigneeType: true,
+                  user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+                },
               },
               _count: { select: { comments: true, attachments: true } },
               checklists: { select: { items: { select: { done: true } } } },

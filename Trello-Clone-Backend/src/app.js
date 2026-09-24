@@ -29,6 +29,11 @@ import { landingPublicRouter } from "./modules/landing/landing.public.routes.js"
 import { backupRouter, backupPublicRouter } from "./modules/backup/backup.routes.js";
 import { reactionsRouter } from "./modules/reactions/reactions.routes.js";
 import { zaloRouter } from "./modules/zalo/zalo.routes.js";
+import { organizationsRouter } from "./modules/organizations/organizations.routes.js";
+import { milestonesRouter } from "./modules/milestones/milestones.routes.js";
+import { dependenciesRouter } from "./modules/dependencies/dependencies.routes.js";
+import { weeklyReportRouter } from "./modules/weeklyReport/weeklyReport.routes.js";
+import { clientPortalRouter } from "./modules/clientPortal/clientPortal.routes.js";
 
 export function createApp() {
   const app = express();
@@ -76,6 +81,11 @@ export function createApp() {
   app.use("/api/reactions", reactionsRouter);
   app.use("/api/admin/backup", backupRouter);
   app.use("/api/admin", adminRouter);
+  app.use("/api", organizationsRouter);
+  app.use("/api", milestonesRouter);
+  app.use("/api", dependenciesRouter);
+  app.use("/api", weeklyReportRouter);
+  app.use("/api", clientPortalRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

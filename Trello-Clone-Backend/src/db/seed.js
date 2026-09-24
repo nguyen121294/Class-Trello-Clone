@@ -57,13 +57,20 @@ const PERMISSIONS = [
   { key: "system.impersonate", description: "Log in as another user" },
   { key: "storage.view", description: "View storage usage" },
   { key: "storage.manage", description: "Manage / clean up storage" },
+  { key: "executive.overview", description: "View executive cross-workspace dashboard" },
+  { key: "gantt.manage", description: "Manage Gantt chart and dependencies" },
+  { key: "milestones.manage", description: "Manage milestones and payment gates" },
+  { key: "reports.manage", description: "Manage and export weekly reports" },
 ];
 
 const ROLES = [
-  { key: "super_admin", name: "Super Admin", description: "Full access; bypasses all checks" },
+  { key: "platform_owner", name: "Platform Owner", description: "SaaS Owner; full control over feature flags and tenants" },
+  { key: "super_admin", name: "Super Admin", description: "Organization IT Admin; bypasses workspace checks within tenant" },
+  { key: "executive", name: "Executive", description: "Company leadership; read-only access to all workspaces and overview dashboard" },
   { key: "admin", name: "Admin", description: "Operations management" },
   { key: "support", name: "Support", description: "Read-only ops + impersonate for debugging" },
   { key: "user", name: "User", description: "Regular end user" },
+  { key: "client", name: "Client", description: "Client/Partner read-only observer" },
 ];
 
 // Workspace/board scoped roles (tier B). Non-system; granted with tenantId=workspaceId.
@@ -99,6 +106,16 @@ const ROLE_PERMS = {
     "cards.read",
     "system.view_audit_log", "system.impersonate",
   ],
+  executive: [
+    "workspaces.list", "workspaces.read",
+    "boards.list", "boards.read",
+    "cards.read",
+    "executive.overview",
+  ],
+  client: [
+    "boards.read",
+    "cards.read",
+  ],
   user: [
     "workspaces.list", "workspaces.read", "workspaces.create", "workspaces.update",
     "boards.list", "boards.read", "boards.create", "boards.update", "boards.delete",
@@ -106,6 +123,7 @@ const ROLE_PERMS = {
     "cards.create", "cards.read", "cards.update", "cards.delete",
     "comments.create", "comments.update", "comments.delete",
     "attachments.create", "attachments.delete",
+    "gantt.manage", "milestones.manage", "reports.manage",
   ],
 };
 
@@ -155,6 +173,41 @@ async function main() {
     });
   }
 
+  // Seed Default Organization
+  let defaultOrg = await prisma.organization.findFirst();
+  if (!defaultOrg) {
+    defaultOrg = await prisma.organization.create({
+      data: {
+        name: "Enterprise Default Organization",
+        code: "default",
+        plan: "enterprise",
+        isActive: true,
+      },
+    });
+    console.log(`Created default organization: ${defaultOrg.name} (${defaultOrg.id})`);
+  }
+
+  // Seed Feature Flags in settings
+  await prisma.setting.upsert({
+    where: { key: "feature_flags" },
+    update: {},
+    create: {
+      key: "feature_flags",
+      value: {
+        default_flags: {
+          module_gantt: true,
+          module_weekly_report: true,
+          module_milestones: true,
+          module_executive_dashboard: true,
+          module_client_portal: true,
+          max_workspaces_per_org: 50,
+          max_users_per_org: 200,
+        },
+        tenant_overrides: {},
+      },
+    },
+  });
+
   // Seed super_admin user (skipped on Prod so the first-run setup page is used).
   if (!env.SEED_SUPER_ADMIN) {
     console.log("Seed complete. SEED_SUPER_ADMIN=false -> use first-run setup page to create super_admin.");
@@ -164,12 +217,13 @@ async function main() {
   const passwordHash = await bcrypt.hash(env.SEED_ADMIN_PASSWORD, 10);
   const admin = await prisma.user.upsert({
     where: { email: env.SEED_ADMIN_EMAIL },
-    update: {},
+    update: { orgId: defaultOrg.id },
     create: {
       email: env.SEED_ADMIN_EMAIL,
       passwordHash,
       name: "Super Admin",
       isActive: true,
+      orgId: defaultOrg.id,
     },
     select: { id: true },
   });

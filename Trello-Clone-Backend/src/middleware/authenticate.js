@@ -27,7 +27,7 @@ export const authenticate = async (req, _res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.user_id },
-      select: { id: true, tokenVersion: true, isActive: true },
+      select: { id: true, tokenVersion: true, isActive: true, orgId: true },
     });
     if (!user || !user.isActive) throw Unauthorized("USER_INACTIVE", "User not active");
     if (user.tokenVersion !== decoded.token_version) {
@@ -37,6 +37,7 @@ export const authenticate = async (req, _res, next) => {
     const roles = await getUserRoleKeys(user.id);
     req.user = {
       id: user.id,
+      orgId: user.orgId,
       tokenVersion: user.tokenVersion,
       jti: decoded.jti,
       exp: decoded.exp,

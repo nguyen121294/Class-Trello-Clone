@@ -599,6 +599,9 @@ export function CardModal({ card, boardId, board, onClose }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [due, setDue] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [jiraUrl, setJiraUrl] = useState('');
+  const [expectedResult, setExpectedResult] = useState('');
   const [descEditing, setDescEditing] = useState(false);
   const [comment, setComment] = useState('');
   const [mentions, setMentions] = useState([]);
@@ -617,12 +620,18 @@ export function CardModal({ card, boardId, board, onClose }) {
     setTitle(card?.title ?? '');
     setDescription(card?.description ?? '');
     setDue(isoToLocalInput(card?.dueDate));
+    setStartDate(isoToLocalInput(card?.startDate));
+    setJiraUrl(card?.jiraUrl ?? '');
+    setExpectedResult(card?.expectedResult ?? '');
   }, [card]);
 
   useEffect(() => {
     if (detailQ.data) {
       setDescription(detailQ.data.description ?? '');
       setDue(isoToLocalInput(detailQ.data.dueDate));
+      setStartDate(isoToLocalInput(detailQ.data.startDate));
+      setJiraUrl(detailQ.data.jiraUrl ?? '');
+      setExpectedResult(detailQ.data.expectedResult ?? '');
     }
   }, [detailQ.data]);
 
@@ -836,6 +845,11 @@ export function CardModal({ card, boardId, board, onClose }) {
           <div><LabelsEditor boardId={boardId} card={full} boardLabels={boardLabels} /></div>
           <div><MembersEditor boardId={boardId} workspaceId={board?.workspaceId} card={full} /></div>
           <div>
+            <div style={sectionLabel}>Start Date (Gantt)</div>
+            <Input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              onBlur={() => saveField({ startDate: startDate ? new Date(startDate).toISOString() : null })} />
+          </div>
+          <div>
             <div style={sectionLabel}>Due date</div>
             <Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} onBlur={saveDue} />
             {full.dueDate && (
@@ -851,6 +865,21 @@ export function CardModal({ card, boardId, board, onClose }) {
                 <button onClick={clearDue} style={{ ...linkBtn, color: color.danger }}>Clear</button>
               </div>
             )}
+          </div>
+          <div>
+            <div style={sectionLabel}>Jira Issue Link</div>
+            <Input placeholder="https://jira.company.com/browse/..." value={jiraUrl} onChange={(e) => setJiraUrl(e.target.value)}
+              onBlur={() => saveField({ jiraUrl: jiraUrl.trim() || null })} />
+            {jiraUrl && (
+              <a href={jiraUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: color.blue, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
+                <SquareArrowOutUpRight size={12} /> Mở Jira Issue
+              </a>
+            )}
+          </div>
+          <div>
+            <div style={sectionLabel}>Kết Quả Kỳ Vọng (Expected Result)</div>
+            <Input placeholder="Mục tiêu hoặc kết quả kỳ vọng..." value={expectedResult} onChange={(e) => setExpectedResult(e.target.value)}
+              onBlur={() => saveField({ expectedResult: expectedResult.trim() || null })} />
           </div>
           <div style={{ borderTop: `1px solid ${color.border}`, paddingTop: space.base, display: 'flex', flexDirection: 'column', gap: space.sm }}>
             <Button variant="secondary" leftIcon={full.watching ? <EyeOff size={15} /> : <Eye size={15} />}

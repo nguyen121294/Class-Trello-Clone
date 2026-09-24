@@ -25,6 +25,7 @@ const settingsSchema = z.object({
   scopeDb: z.boolean().optional(),
   scopeUploads: z.boolean().optional(),
   scopeConfigs: z.boolean().optional(),
+  rcloneRemote: z.string().min(1).max(50).optional(),
   remoteFolder: z.string().min(1).max(200).optional(),
 });
 

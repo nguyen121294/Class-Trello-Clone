@@ -73,6 +73,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - .:/infra-snapshot:ro
     ports:
       - "4000:4000"
     depends_on:

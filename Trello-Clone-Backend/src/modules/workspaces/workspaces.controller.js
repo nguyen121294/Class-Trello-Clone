@@ -8,7 +8,7 @@ import {
 } from "./workspaces.schema.js";
 
 export const list = async (req, res) => {
-  res.json(await service.listWorkspaces(req.user.id));
+  res.json(await service.listWorkspaces(req.user));
 };
 
 export const create = async (req, res) => {

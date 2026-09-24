@@ -1,0 +1,98 @@
+flowchart TD
+    subgraph Clients["Client Access Layer"]
+        UserBrowser["User Web Browser (SPA :8080)"]
+        AdminBrowser["Admin Web Browser (SPA :8081)"]
+        PublicGuest["Public Visitor (Next.js :3000)"]
+        ZaloUser["Zalo Mobile Client / Bot"]
+        GrafanaUser["DevOps Engineer (:3001)"]
+    end
+
+    subgraph Edge["Edge Reverse Proxy Gateway (Port 80 / 443)"]
+        Nginx["Nginx Gateway Reverse Proxy<br/>(nginx:1.27-alpine)<br/>app. / admin. / media. / bot. / internal."]
+    end
+
+    subgraph FrontendCluster["Frontend Application Services"]
+        FrontendUser["frontend-user<br/>(Nginx Container serving Vite React SPA)"]
+        FrontendAdmin["frontend-admin<br/>(Nginx Container serving Vite React SPA)"]
+        LandingApp["landing<br/>(Node.js Next.js 14 App Router)"]
+    end
+
+    subgraph BackendCore["Backend API & Realtime Layer"]
+        API["Express.js API Engine (:4000)<br/>(app.js & index.js)"]
+        SocketIO["Socket.IO Realtime Engine<br/>(Room: board:id, user:id)"]
+        OTel["OpenTelemetry Instrumentation<br/>(tracing.js auto-instrument)"]
+    end
+
+    subgraph AsyncWorker["Asynchronous Processing Layer (BullMQ)"]
+        EmailWorker["Email Worker<br/>(email.worker.js)"]
+        ReminderWorker["Reminders Worker<br/>(reminders.js cron)"]
+        BackupWorker["Backup Worker<br/>(backup.queue.js)"]
+    end
+
+    subgraph DataStorage["Persistence & State Layer"]
+        Postgres[("PostgreSQL 16 Engine<br/>(:5432 - 30 Tables)")]
+        RedisStore[("Redis 7 In-Memory Store<br/>(:6379 - Cache / Blacklist / BullMQ)")]
+        MinIOStore[("MinIO S3 Object Storage<br/>(:9000 API / :9001 Console)")]
+    end
+
+    subgraph ExternalServices["External APIs & Integrations"]
+        GDrive["Google Drive API v3<br/>(Remote Cloud Backup Target)"]
+        SMTPServer["SMTP Mail Server<br/>(Password Reset & Notifications)"]
+        ZaloAPI["Zalo Bot Platform API<br/>(bot-api.zaloplatforms.com)"]
+        DeepSeek["DeepSeek LLM API<br/>(api.deepseek.com)"]
+    end
+
+    subgraph ObservabilityStack["Observability & Telemetry Stack"]
+        Prometheus["Prometheus TSDB (:9090)"]
+        Alertmanager["Alertmanager (:9093)"]
+        Grafana["Grafana Dashboards (:3000 -> :3001)"]
+        Loki["Grafana Loki (Log Ingestion)"]
+        Promtail["Promtail (Docker Log Shipper)"]
+        Tempo["Grafana Tempo (Distributed Traces)"]
+        Exporters["Node / PG / Redis Exporters"]
+    end
+
+    %% Network Routes
+    UserBrowser -->|app.trello-clone.online| Nginx
+    AdminBrowser -->|admin.trello-clone.online| Nginx
+    PublicGuest -->|trello-clone.online| Nginx
+    ZaloUser -->|bot.trello-clone.online/api/zalo/webhook| Nginx
+    GrafanaUser -->|internal.trello-clone.online| Nginx
+
+    Nginx -->|Proxy :80| FrontendUser
+    Nginx -->|Proxy :80| FrontendAdmin
+    Nginx -->|Proxy :3000| LandingApp
+    Nginx -->|Proxy :9000| MinIOStore
+    Nginx -->|Proxy :4000| API
+    Nginx -->|Proxy :3000| Grafana
+
+    FrontendUser -.->|REST HTTP / WebSocket| API
+    FrontendAdmin -.->|REST HTTP| API
+    LandingApp -.->|Internal HTTP :4000| API
+
+    API --- SocketIO
+    API -->|Prisma Client| Postgres
+    API -->|ioredis| RedisStore
+    API -->|S3 SDK| MinIOStore
+    API -->|Enqueue Jobs| RedisStore
+
+    RedisStore -->|Consume Jobs| EmailWorker
+    RedisStore -->|Consume Jobs| ReminderWorker
+    RedisStore -->|Consume Jobs| BackupWorker
+
+    EmailWorker -->|Send Mail| SMTPServer
+    BackupWorker -->|Dump SQL & Zip Files| Postgres
+    BackupWorker -->|Fetch Objects| MinIOStore
+    BackupWorker -->|Upload Archive| GDrive
+    API -->|Bot Webhook & Send Msg| ZaloAPI
+    API -->|Query Contextual AI| DeepSeek
+
+    %% Observability Streams
+    API -->|Metrics Scrape /metrics| Prometheus
+    API -->|OTLP Traces| Tempo
+    Promtail -->|Tail /var/lib/docker/containers| Loki
+    Exporters -->|Scrape Host/PG/Redis| Prometheus
+    Prometheus -->|Alerts| Alertmanager
+    Prometheus --> Grafana
+    Loki --> Grafana
+    Tempo --> Grafana

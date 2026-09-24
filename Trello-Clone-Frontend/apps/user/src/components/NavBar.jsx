@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Home, User, Settings as SettingsIcon, LogOut, Layout, CreditCard, LayoutDashboard, Keyboard } from 'lucide-react';
+import { Search, Home, User, Settings as SettingsIcon, LogOut, Layout, CreditCard, LayoutDashboard, Keyboard, Briefcase } from 'lucide-react';
 import {
   useAuth, useToast, ThemeToggle, Avatar, Dropdown, MenuItem, MenuDivider, Spinner,
   color, font, radius, space, shadow,
 } from '@trello/ui';
-import { meUser } from '../lib/me';
+import { meUser, meRoles } from '../lib/me';
 import { useSearch } from '../lib/searchData';
 import { NotificationsBell } from './NotificationsBell';
 
@@ -102,6 +102,8 @@ function Logo({ onClick }) {
 export function NavBar() {
   const { user, logout } = useAuth();
   const me = meUser(user);
+  const roles = meRoles(user);
+  const isExecutive = roles.some((r) => ['executive', 'auditor', 'super_admin', 'platform_owner', 'admin'].includes(r));
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -126,6 +128,28 @@ export function NavBar() {
 
       {me && (
         <div style={{ display: 'flex', alignItems: 'center', gap: space.xs }}>
+          {isExecutive && (
+            <button
+              onClick={() => navigate('/executive')}
+              title="Executive Overview Dashboard"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: radius.pill,
+                border: `1px solid ${color.blue}`,
+                background: 'rgba(38,132,255,0.08)',
+                color: color.blue,
+                cursor: 'pointer',
+                marginRight: 4,
+              }}
+            >
+              <Briefcase size={14} /> Executive
+            </button>
+          )}
           <ThemeToggle size={38} />
           <NotificationsBell enabled={!!me} />
           <Dropdown
@@ -151,6 +175,9 @@ export function NavBar() {
             <MenuDivider />
             <MenuItem icon={<Home size={16} />} onClick={() => navigate('/')}>Workspaces</MenuItem>
             <MenuItem icon={<LayoutDashboard size={16} />} onClick={() => navigate('/dashboard')}>Dashboard</MenuItem>
+            {isExecutive && (
+              <MenuItem icon={<Briefcase size={16} />} onClick={() => navigate('/executive')}>Executive Overview</MenuItem>
+            )}
             <MenuItem icon={<User size={16} />} onClick={() => navigate('/profile')}>Profile</MenuItem>
             <MenuItem icon={<SettingsIcon size={16} />} onClick={() => navigate('/settings')}>Settings</MenuItem>
             <MenuItem icon={<Keyboard size={16} />} onClick={() => window.dispatchEvent(new Event('trello:open-shortcuts'))}>Shortcuts</MenuItem>

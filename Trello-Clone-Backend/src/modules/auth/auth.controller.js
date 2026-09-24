@@ -1,5 +1,5 @@
 import {
-  registerSchema, loginSchema, changePasswordSchema,
+  registerSchema, registerOrgSchema, loginSchema, changePasswordSchema,
   forgotPasswordSchema, resetPasswordSchema, setupSchema,
 } from "./auth.schema.js";
 import * as service from "./auth.service.js";
@@ -13,6 +13,23 @@ function setRefreshCookie(res, token, maxAgeMs) {
 function clearRefreshCookie(res) {
   res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions(0));
 }
+
+export const checkOrgCodeHandler = async (req, res) => {
+  const code = req.query.code;
+  res.json(await service.checkOrgCodeAvailable(code));
+};
+
+export const registerOrgHandler = async (req, res) => {
+  const input = registerOrgSchema.parse(req.body);
+  const result = await service.registerOrganization(input, req.ip, { userAgent: req.headers["user-agent"] });
+  setRefreshCookie(res, result.tokens.refreshToken, result.tokens.refreshMaxAgeMs);
+  res.status(201).json({
+    accessToken: result.tokens.accessToken,
+    org: result.org,
+    workspace: result.workspace,
+    upn: result.upn,
+  });
+};
 
 export const registerHandler = async (req, res) => {
   const input = registerSchema.parse(req.body);

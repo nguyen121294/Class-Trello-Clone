@@ -47,17 +47,74 @@ export async function getWorkspaceRole(userId, workspaceId) {
 }
 
 // Reusable guard: throws 404 if workspace missing, 403 if no access / below minRole.
+// Reusable guard: throws 404 if workspace missing, 403 if no access / below minRole.
 export async function assertWorkspaceAccess(userId, workspaceId, minRole) {
   const { exists, role } = await getWorkspaceRole(userId, workspaceId);
   if (!exists) throw NotFound("Workspace not found");
-  if (!role) throw Forbidden("No access to this workspace");
+  if (!role) {
+    const globalRoles = await prisma.userRole.findMany({
+      where: {
+        userId,
+        tenantId: null,
+        role: { key: { in: ["executive", "auditor", "super_admin", "platform_owner"] } },
+      },
+      select: { role: { select: { key: true } } },
+    });
+    const hasExecutive = globalRoles.some((r) => ["executive", "auditor"].includes(r.role.key));
+    const hasAdmin = globalRoles.some((r) => ["super_admin", "platform_owner"].includes(r.role.key));
+    if (hasExecutive) {
+      if (minRole && minRole !== "ws_guest" && minRole !== "ws_member") {
+        throw Forbidden("Executive has read-only access to this workspace");
+      }
+      return "executive";
+    }
+    if (hasAdmin) {
+      return "ws_owner";
+    }
+    throw Forbidden("No access to this workspace");
+  }
   if (minRole && WS_ROLE_RANK[role] < WS_ROLE_RANK[minRole]) {
     throw Forbidden(`Requires ${minRole} or higher`);
   }
   return role;
 }
 
-export async function listWorkspaces(userId) {
+export async function listWorkspaces(actor) {
+  const userId = typeof actor === "object" && actor !== null ? actor.id : actor;
+  const roles = typeof actor === "object" && actor !== null ? (actor.roles || []) : [];
+  const orgId = typeof actor === "object" && actor !== null ? actor.orgId : null;
+  const isExecutive = roles.some((r) => ["executive", "auditor", "super_admin", "platform_owner"].includes(r));
+
+  if (isExecutive) {
+    const where = orgId ? { orgId } : {};
+    const orgWorkspaces = await prisma.workspace.findMany({
+      where,
+      select: { id: true, name: true, visibility: true, ownerId: true, logoUrl: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const counts = await prisma.board.groupBy({
+      by: ["workspaceId"],
+      where: { workspaceId: { in: orgWorkspaces.map((w) => w.id) } },
+      _count: { _all: true },
+    });
+    const countByWs = new Map(counts.map((c) => [c.workspaceId, c._count._all]));
+
+    const defaultRole = roles.some((r) => ["super_admin", "platform_owner"].includes(r))
+      ? "ws_owner"
+      : "executive";
+
+    return orgWorkspaces.map((w) => ({
+      id: w.id,
+      name: w.name,
+      visibility: w.visibility,
+      ownerId: w.ownerId,
+      logoUrl: w.logoUrl ?? null,
+      role: w.ownerId === userId ? "ws_owner" : defaultRole,
+      boardCount: countByWs.get(w.id) ?? 0,
+      createdAt: w.createdAt,
+    }));
+  }
+
   const now = new Date();
   const owned = await prisma.workspace.findMany({
     where: { ownerId: userId },
@@ -211,11 +268,37 @@ export async function listMembers(userId, workspaceId, skipAccessCheck = false) 
 
 export async function addMember(userId, workspaceId, input) {
   await assertWorkspaceAccess(userId, workspaceId, "ws_admin");
-  const target = await prisma.user.findUnique({
-    where: { email: input.email },
+  const raw = String(input.email || "").trim().toLowerCase();
+  let target = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: raw },
+        { email: { equals: raw, mode: "insensitive" } },
+      ],
+    },
     select: { id: true, name: true, email: true },
   });
-  if (!target) throw NotFound("No user with that email", "USER_NOT_FOUND");
+
+  if (!target && !raw.includes("@")) {
+    const ws = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { org: { select: { code: true } } },
+    });
+    if (ws?.org?.code) {
+      const upn = `${raw}@${ws.org.code}`;
+      target = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: upn },
+            { email: { equals: upn, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true, name: true, email: true },
+      });
+    }
+  }
+
+  if (!target) throw NotFound("Không tìm thấy thành viên với email hoặc tài khoản này", "USER_NOT_FOUND");
 
   const roleId = await roleIdByKey(input.role);
   const existing = await prisma.userRole.findFirst({

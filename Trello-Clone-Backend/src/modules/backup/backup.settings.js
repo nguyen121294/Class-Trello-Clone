@@ -5,11 +5,12 @@ const KEY = "backup";
 export const DEFAULTS = {
   enabled: false,
   cronExpr: "0 2 * * *", // daily 02:00
-  retentionCount: 30,
+  retentionCount: 3,
   scopeDb: true,
   scopeUploads: true,
-  scopeConfigs: false,
-  remoteFolder: "trello-backups",
+  scopeConfigs: true,
+  rcloneRemote: "gdrive",
+  remoteFolder: "masterlms-backups",
   gdriveClientId: "",
   gdriveClientSecret: "",
   gdriveRefreshToken: "",

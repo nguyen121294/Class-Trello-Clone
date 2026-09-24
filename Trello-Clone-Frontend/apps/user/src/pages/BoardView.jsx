@@ -36,7 +36,10 @@ import { BoardMembers } from '../components/BoardMembers';
 import { CustomFieldsManager } from '../components/CustomFieldsManager';
 import { recordRecentBoard, removeRecentBoard } from '../lib/recentBoards';
 import { getSavedFilters, saveFilter, deleteFilter } from '../lib/savedFilters';
-import { Bookmark, Star } from 'lucide-react';
+import { Bookmark, Star, BarChart2, Flag, FileSpreadsheet, ExternalLink } from 'lucide-react';
+import { GanttChart } from '../components/GanttChart';
+import { MilestonesManager } from '../components/MilestonesManager';
+import { WeeklyReportManager } from '../components/WeeklyReportManager';
 
 const EMPTY_FILTER = { text: '', labelIds: [], memberIds: [], due: '' };
 
@@ -78,6 +81,7 @@ export function BoardView() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   useBoardSocket(boardId);
 
   const { board, lists, cards, isLoading, isError, notFound } = useBoardData(boardId);
@@ -137,6 +141,8 @@ export function BoardView() {
   const bgFileRef = useRef(null);
   const [descOpen, setDescOpen] = useState(false);
   const [boardDesc, setBoardDesc] = useState('');
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [driveUrl, setDriveUrl] = useState('');
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [fieldsOpen, setFieldsOpen] = useState(false);
@@ -422,7 +428,69 @@ export function BoardView() {
             }}>
               <TableIcon size={14} /> Table
             </button>
+            <button onClick={() => setView('gantt')} aria-label="Gantt view" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', border: 'none',
+              borderRadius: radius.base, cursor: 'pointer', fontFamily: font.text, fontSize: 13, color: '#fff',
+              background: view === 'gantt' ? 'rgba(255,255,255,0.25)' : 'transparent',
+            }}>
+              <BarChart2 size={14} /> Gantt
+            </button>
+            <button onClick={() => setView('milestones')} aria-label="Milestones view" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', border: 'none',
+              borderRadius: radius.base, cursor: 'pointer', fontFamily: font.text, fontSize: 13, color: '#fff',
+              background: view === 'milestones' ? 'rgba(255,255,255,0.25)' : 'transparent',
+            }}>
+              <Flag size={14} /> Milestones
+            </button>
+            <button onClick={() => setView('weekly-report')} aria-label="Weekly report view" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', border: 'none',
+              borderRadius: radius.base, cursor: 'pointer', fontFamily: font.text, fontSize: 13, color: '#fff',
+              background: view === 'weekly-report' ? 'rgba(255,255,255,0.25)' : 'transparent',
+            }}>
+              <FileSpreadsheet size={14} /> Báo cáo tuần
+            </button>
           </div>
+        )}
+        {board?.googleDriveUrl ? (
+          <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <a
+              href={board.googleDriveUrl}
+              target="_blank"
+              rel="noreferrer"
+              title="Mở thư mục Google Drive dự án"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px',
+                borderRadius: `${radius.base}px 0 0 ${radius.base}px`, color: '#fff', background: 'rgba(255,255,255,0.18)', textDecoration: 'none',
+                fontSize: 13, fontWeight: 600,
+              }}
+            >
+              <ExternalLink size={14} /> Google Drive
+            </a>
+            <button
+              onClick={() => { setDriveUrl(board.googleDriveUrl || ''); setDriveOpen(true); }}
+              title="Đổi link Google Drive"
+              style={{
+                height: 32, padding: '0 8px', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: `0 ${radius.base}px ${radius.base}px 0`, color: '#fff', background: 'rgba(255,255,255,0.18)', cursor: 'pointer',
+              }}
+            >
+              <Pencil size={12} />
+            </button>
+          </div>
+        ) : (
+          board && (
+            <button
+              onClick={() => { setDriveUrl(''); setDriveOpen(true); }}
+              title="Gắn link Google Drive cho dự án"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px',
+                borderRadius: radius.base, color: 'rgba(255,255,255,0.9)', background: 'rgba(255,255,255,0.15)',
+                border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              }}
+            >
+              <ExternalLink size={14} /> + Drive Link
+            </button>
+          )
         )}
         {board && (
           <FilterBar
@@ -442,6 +510,7 @@ export function BoardView() {
           >
             <MenuItem icon={<Pencil size={16} />} onClick={() => { setBoardName(board.name); setRenameOpen(true); }}>Rename</MenuItem>
             <MenuItem icon={<FileText size={16} />} onClick={() => { setBoardDesc(board.description ?? ''); setDescOpen(true); }}>Edit description</MenuItem>
+            <MenuItem icon={<ExternalLink size={16} />} onClick={() => { setDriveUrl(board.googleDriveUrl || ''); setDriveOpen(true); }}>Google Drive folder</MenuItem>
             <MenuItem icon={<Image size={16} />} onClick={() => setBgOpen(true)}>Change background</MenuItem>
             <MenuItem icon={<TagIcon size={16} />} onClick={() => setLabelsOpen(true)}>Manage labels</MenuItem>
             <MenuItem icon={<Users size={16} />} onClick={() => setMembersOpen(true)}>Members</MenuItem>
@@ -472,6 +541,18 @@ export function BoardView() {
 
       {!isLoading && !isError && view === 'table' && (
         <BoardTable lists={lists} cards={visibleCards} onCardClick={(c) => setOpenCard(c)} />
+      )}
+
+      {!isLoading && !isError && view === 'gantt' && (
+        <GanttChart board={board} cards={visibleCards} onCardClick={(c) => setOpenCard(c)} onRefresh={() => queryClient.invalidateQueries(['board-data', boardId])} />
+      )}
+
+      {!isLoading && !isError && view === 'milestones' && (
+        <MilestonesManager boardId={boardId} />
+      )}
+
+      {!isLoading && !isError && view === 'weekly-report' && (
+        <WeeklyReportManager boardId={boardId} board={board} />
       )}
 
       {!isLoading && !isError && view === 'board' && (
@@ -570,6 +651,28 @@ export function BoardView() {
           <Textarea autoFocus value={boardDesc} onChange={(e) => setBoardDesc(e.target.value)}
             placeholder="Add a description for this board…" style={{ minHeight: 120 }} />
         </form>
+      </Modal>
+
+      <Modal
+        open={driveOpen} onClose={() => setDriveOpen(false)} title="Liên kết thư mục Google Drive dự án" size="sm"
+        footer={<>
+          <Button variant="ghost" onClick={() => setDriveOpen(false)}>Hủy</Button>
+          <Button onClick={() => {
+            updateBoard.mutate({ id: boardId, patch: { googleDriveUrl: driveUrl.trim() } });
+            setDriveOpen(false);
+          }}>Lưu liên kết</Button>
+        </>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p style={{ fontSize: 13, color: color.textMuted, margin: 0 }}>
+            Dán đường dẫn thư mục Google Drive dự án để truy cập và lưu trữ tài liệu:
+          </p>
+          <Input
+            placeholder="https://drive.google.com/drive/folders/..."
+            value={driveUrl}
+            onChange={(e) => setDriveUrl(e.target.value)}
+          />
+        </div>
       </Modal>
 
       <Modal open={bgOpen} onClose={() => setBgOpen(false)} title="Change background" size="sm">

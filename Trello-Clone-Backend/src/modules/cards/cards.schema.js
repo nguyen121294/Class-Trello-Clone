@@ -14,6 +14,8 @@ export const updateCardSchema = z
     description: z.string().max(16384).nullable().optional(),
     dueDate: isoDate.optional(),
     startDate: isoDate.optional(),
+    jiraUrl: z.string().nullable().optional(),
+    expectedResult: z.string().max(4096).nullable().optional(),
     coverUrl: z.string().max(1024).nullable().optional(),
     archived: z.boolean().optional(),
     status: z.enum(["todo", "doing", "done", "blocked"]).nullable().optional(),

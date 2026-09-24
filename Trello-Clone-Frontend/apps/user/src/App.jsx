@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/api';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { RegisterOrg } from './pages/RegisterOrg';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Workspaces } from './pages/Workspaces';
@@ -17,6 +18,8 @@ import { Settings } from './pages/Settings';
 import { InviteAccept } from './pages/InviteAccept';
 import { PublicProfile } from './pages/PublicProfile';
 import { NotFound } from './pages/NotFound';
+import { ExecutiveDashboard } from './pages/ExecutiveDashboard';
+import { ClientPortal } from './pages/ClientPortal';
 import { NavBar } from './components/NavBar';
 import { GlobalShortcuts } from './components/GlobalShortcuts';
 
@@ -80,6 +83,7 @@ export function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/register-org" element={<RegisterOrg />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<ProtectedRoute><Shell><Workspaces /></Shell></ProtectedRoute>} />
@@ -87,6 +91,8 @@ export function App() {
           <Route path="/b/:boardId" element={<ProtectedRoute><Shell><BoardView /></Shell></ProtectedRoute>} />
           <Route path="/b/:boardId/calendar" element={<ProtectedRoute><Shell><CalendarView /></Shell></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Shell><Dashboard /></Shell></ProtectedRoute>} />
+          <Route path="/executive" element={<ProtectedRoute><Shell><ExecutiveDashboard /></Shell></ProtectedRoute>} />
+          <Route path="/portal/:boardId" element={<ClientPortal />} />
           <Route path="/profile" element={<ProtectedRoute><Shell><Profile /></Shell></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Shell><Settings /></Shell></ProtectedRoute>} />
           <Route path="/invite/:token" element={<ProtectedRoute><InviteAccept /></ProtectedRoute>} />

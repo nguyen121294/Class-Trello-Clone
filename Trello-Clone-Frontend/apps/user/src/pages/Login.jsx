@@ -17,8 +17,8 @@ export function Login() {
 
   const validate = () => {
     const e = {};
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Enter a valid email.';
-    if (!password) e.password = 'Password is required.';
+    if (!/^[^\s@]+@[^\s@]+$/.test(email)) e.email = 'Vui lòng nhập email hoặc định danh tài khoản (VD: admin@achau hoặc you@example.com).';
+    if (!password) e.password = 'Vui lòng nhập mật khẩu.';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -28,11 +28,11 @@ export function Login() {
     if (!validate()) return;
     setBusy(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       const to = location.state?.from?.pathname ?? '/';
       navigate(to, { replace: true });
     } catch {
-      toast.error('Invalid email or password.');
+      toast.error('Tài khoản hoặc mật khẩu không chính xác.');
     } finally {
       setBusy(false);
     }
@@ -40,24 +40,48 @@ export function Login() {
 
   return (
     <AuthShell
-      title="Log in to continue"
-      subtitle="Welcome back. Pick up where you left off."
-      footer={<>No account? <Link to="/register" style={{ color: '#fff', fontWeight: 600 }}>Sign up</Link></>}
+      title="Đăng nhập hệ thống"
+      subtitle="Quản trị Dự án & Phân quyền Doanh nghiệp B2B."
+      footer={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'center' }}>
+          <div>
+            Chưa có tài khoản cá nhân?{' '}
+            <Link to="/register" style={{ color: '#fff', fontWeight: 600 }}>
+              Đăng ký
+            </Link>
+          </div>
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10 }}>
+            🏢 Bạn là Doanh nghiệp mới?{' '}
+            <Link to="/register-org" style={{ color: '#93c5fd', fontWeight: 700, textDecoration: 'underline' }}>
+              Đăng ký Tổ chức (Nhận quyền Super-Admin)
+            </Link>
+          </div>
+        </div>
+      }
     >
       <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: space.base }}>
         <Input
-          label="Email" type="email" placeholder="you@example.com" autoComplete="email"
-          value={email} error={errors.email}
+          label="Tài khoản / Email"
+          placeholder="admin@achau hoặc you@example.com"
+          autoComplete="username"
+          value={email}
+          error={errors.email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <Input
-          label="Password" type="password" placeholder="Enter your password" autoComplete="current-password"
-          value={password} error={errors.password}
+          label="Mật khẩu"
+          type="password"
+          placeholder="Nhập mật khẩu của bạn"
+          autoComplete="current-password"
+          value={password}
+          error={errors.password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <Button type="submit" size="lg" loading={busy} fullWidth>Log in</Button>
+        <Button type="submit" size="lg" loading={busy} fullWidth>
+          Đăng nhập
+        </Button>
         <Link to="/forgot-password" style={{ color: '#fff', fontSize: 13, textAlign: 'center', opacity: 0.9 }}>
-          Forgot password?
+          Quên mật khẩu?
         </Link>
       </form>
     </AuthShell>

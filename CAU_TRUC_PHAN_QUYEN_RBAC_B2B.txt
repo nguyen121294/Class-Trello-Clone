@@ -1,0 +1,372 @@
+================================================================================
+BẢN ĐẶC TẢ KIẾN TRÚC PHÂN QUYỀN RBAC CHO HỆ THỐNG B2B SAAS / ENTERPRISE
+(Tài liệu thiết kế chuẩn - Có thể tái sử dụng cho mọi dự án phần mềm)
+================================================================================
+
+Tác giả: Architecture & Security Team
+Mục đích: Bản vẽ kiến trúc phân quyền chuẩn cho phần mềm bán cho Doanh nghiệp,
+phân tách rành mạch giữa Nhà phát triển (SaaS Owner), Khách hàng (Doanh nghiệp),
+các phòng ban độc lập (Workspace), lãnh đạo giám sát (Executive) và thanh toán (Buyer).
+
+--------------------------------------------------------------------------------
+MỤC LỤC:
+1. TỔNG QUAN KIẾN TRÚC 4 TẦNG (4-TIER HIERARCHY)
+2. ĐỊNH NGHĨA CHI TIẾT TỪNG VAI TRÒ (ACTORS & ROLES)
+3. MA TRẬN PHÂN QUYỀN (RBAC MATRIX: ROLE x RESOURCE x ACTION)
+4. MÔ HÌNH DỮ LIỆU CHUẨN (GENERIC DATABASE SCHEMA DDL / PRISMA)
+5. CƠ CHẾ CÁCH LY DỮ LIỆU PHÒNG BAN (MULTI-TENANT DATA ISOLATION)
+5.1. CƠ CHẾ ĐỊNH DANH ĐA TỔ CHỨC (UPN: username@company_code) & TỰ ĐĂNG KÝ SAAS
+6. HỆ THỐNG FEATURE FLAGS (BẬT / TẮT TÍNH NĂNG CỦA SAAS OWNER)
+7. THIẾT KẾ BACKEND GUARDS & MIDDLEWARE (MẪU CODE MINH HỌA)
+8. THIẾT KẾ FRONTEND GUARDS (UI & ROUTE PERMISSIONS)
+9. CHECKLIST TRIỂN KHAI CHO DỰ ÁN MỚI
+================================================================================
+
+
+1. TỔNG QUAN KIẾN TRÚC 4 TẦNG (4-TIER HIERARCHY)
+--------------------------------------------------------------------------------
+Hệ thống giải quyết bài toán phân quyền qua mô hình phân tầng kim tự tháp:
+
++--------------------------------------------------------------------------+
+|  TẦNG 0: SAAS PLATFORM OWNER (Nhà phát triển / Chủ sản phẩm)             |
+|  - Role: platform_owner / master_admin                                   |
+|  - Quyền hạn: Bật/tắt Feature Flags, cấp/khóa License Doanh nghiệp.      |
++--------------------------------------------------------------------------+
+                                    |
++--------------------------------------------------------------------------+
+|  TẦNG 1: DOANH NGHIỆP KHÁCH HÀNG (Customer Organization)                 |
+|  - Role: super_admin (IT Doanh nghiệp)                                   |
+|  - Quyền hạn: Quản lý nhân sự công ty, cấp/khóa tài khoản, gán quyền.   |
+|  - Bên lề: Buyer/Thu mua -> Thanh toán qua Stripe Portal, KHÔNG CẦN user.|
++--------------------------------------------------------------------------+
+                                    |
++--------------------------------------------------------------------------+
+|  TẦNG 2: LÃNH ĐẠO GIÁM SÁT TOÀN DIỆN (Cross-Workspace Executives)         |
+|  - Role: executive / auditor (Phó Giám Đốc, Trưởng ban kiểm soát)        |
+|  - Quyền hạn: Xem Dashboard Overview toàn công ty + Read-only mọi WS.    |
++--------------------------------------------------------------------------+
+                                    |
++--------------------------------------------------------------------------+
+|  TẦNG 3: KHÔNG GIAN PHÒNG BAN (Workspace Level - Cách ly dữ liệu)        |
+|  - Role: ws_owner / ws_admin (Giám đốc A, Giám đốc B)                    |
+|  - Role: ws_member (Nhân viên A-1, B-1)                                  |
+|  - Quyền hạn: Làm việc nội bộ trong Workspace được cấp. Không thấy nhau. |
++--------------------------------------------------------------------------+
+
+
+2. ĐỊNH NGHĨA CHI TIẾT TỪNG VAI TRÒ (ACTORS & ROLES)
+--------------------------------------------------------------------------------
+
+[A] NGƯỜI MUA / THU MUA (Buyer / Billing Contact):
+- Không cấp tài khoản trong hệ thống nghiệp vụ (để tiết kiệm seat license và chống rác DB).
+- Nhận hóa đơn điện tử, hợp đồng và truy cập Stripe/Payment Portal qua email riêng.
+- Khi thanh toán thành công, hệ thống tự động kích hoạt Organization cho Doanh nghiệp.
+
+[B] PLATFORM OWNER (Là bạn - Người xây dựng sản phẩm):
+- Role key: `platform_owner` (hoặc `master_admin`).
+- Tách biệt hoàn toàn khỏi khách hàng. Khách hàng dù là Super Admin cũng không thể can thiệp.
+- Quyền độc quyền:
+  + Quản lý Feature Flags: Bật/tắt tính năng theo gói cước (Starter, Pro, Enterprise).
+  + Rollout tính năng mới (A/B testing, beta release).
+  + Khóa toàn bộ hệ thống của khách hàng nếu vi phạm hợp đồng hoặc quá hạn thanh toán.
+
+[C] SUPER ADMIN (IT Doanh nghiệp khách hàng):
+- Role key: `super_admin` (thuộc Organization của khách hàng).
+- Quyền hạn:
+  + Tạo, sửa, khóa, xóa tài khoản nhân viên (A, B, C, A-1, B-1).
+  + Cấp quyền tạo Workspace cho Giám đốc A, Giám đốc B.
+  + Gán vai trò Lãnh đạo giám sát cho Phó Giám Đốc C.
+  + Xem Audit Log nội bộ công ty.
+
+[D] GIÁM ĐỐC A & B (Trưởng phòng ban / Workspace Owners):
+- Role toàn cục: `user` (được Super Admin cấp phép tạo Workspace).
+- Role trong Workspace: `ws_owner` (tự động nhận khi bấm tạo Workspace A, B).
+- Quyền hạn:
+  + Quản lý toàn quyền trong Workspace của mình (đổi tên, cài đặt, tạo board/project).
+  + Thêm/xóa nhân viên trực thuộc (A thêm A-1 vào WS A; B thêm B-1 vào WS B).
+  + Dữ liệu Workspace A và B cách ly 100% (A không thấy dữ liệu của B và ngược lại).
+
+[E] PHÓ GIÁM ĐỐC C (Executive / Auditor - Cấp cao hơn A và B về tầm nhìn):
+- Role key: `executive` (hoặc `auditor`).
+- Tính chất: Giám sát toàn công ty, không can thiệp sâu vào việc sửa xóa task vặt.
+- Quyền hạn:
+  + Có màn hình riêng: "Executive Overview Dashboard" (xem tổng số workspace, tổng dự án, tỷ lệ hoàn thành công việc của từng phòng ban).
+  + Khi bấm vào từng Workspace cụ thể: Có quyền xem chi tiết toàn bộ board/task (Read-only) mà không cần Giám đốc A hay B phải gửi lời mời.
+  + Không được quyền xóa hay sửa task của phòng ban khác để tránh xung đột dữ liệu.
+
+[F] NHÂN VIÊN A-1 & B-1 (Workspace Members):
+- Role trong Workspace: `ws_member`.
+- Quyền hạn: Làm việc trên các bảng được giao việc, kéo thả task, bình luận, đính kèm file.
+- Không có quyền xem các Workspace khác.
+
+
+3. MA TRẬN PHÂN QUYỀN (RBAC MATRIX)
+--------------------------------------------------------------------------------
+Quy ước:
+[x] Có quyền | [-] Không có quyền | [R] Chỉ đọc (Read-only)
+
+TÍNH NĂNG / QUYỀN HẠN            | Platform | Super | Executive | WS Owner | WS Member
+                                 | Owner    | Admin | (Phó GĐ C)| (GĐ A, B)| (NV A-1)
+---------------------------------+----------+-------+-----------+----------+-----------
+1. QUẢN TRỊ NỀN TẢNG (PLATFORM)  |          |       |           |          |
+- Bật/tắt Feature Flags toàn app |   [x]    |  [-]  |    [-]    |   [-]    |    [-]
+- Cấu hình gói cước, hạ tầng     |   [x]    |  [-]  |    [-]    |   [-]    |    [-]
+- Khóa/Mở bản quyền công ty      |   [x]    |  [-]  |    [-]    |   [-]    |    [-]
+---------------------------------+----------+-------+-----------+----------+-----------
+2. QUẢN TRỊ NỘI BỘ (ORGANIZATION)|          |       |           |          |
+- Tạo / Khóa / Reset mật khẩu user|  [-]    |  [x]  |    [-]    |   [-]    |    [-]
+- Phân quyền nội bộ công ty      |   [-]    |  [x]  |    [-]    |   [-]    |    [-]
+- Xem Audit Log công ty          |   [x]    |  [x]  |    [R]    |   [-]    |    [-]
+---------------------------------+----------+-------+-----------+----------+-----------
+3. BÁO CÁO TỔNG QUAN (OVERVIEW)  |          |       |           |          |
+- Dashboard thống kê toàn công ty|   [x]    |  [x]  |    [x]    |   [-]    |    [-]
+- Thống kê tiến độ các phòng ban |   [x]    |  [x]  |    [x]    |   [-]    |    [-]
+---------------------------------+----------+-------+-----------+----------+-----------
+4. KHÔNG GIAN PHÒNG BAN (WS)     |          |       |           |          |
+- Tạo Workspace mới              |   [-]    |  [x]  |    [-]    |   [x]    |    [-]
+- Xem danh sách TẤT CẢ Workspace |   [x]    |  [x]  |    [R]    |   [-]    |    [-]
+- Xem Workspace của riêng mình   |   [x]    |  [x]  |    [R]    |   [x]    |    [x]
+- Sửa/Xóa Workspace của mình     |   [-]    |  [x]  |    [-]    |   [x]    |    [-]
+- Mời nhân viên vào Workspace    |   [-]    |  [x]  |    [-]    |   [x]    |    [-]
+---------------------------------+----------+-------+-----------+----------+-----------
+5. DỰ ÁN & CÔNG VIỆC (BOARDS)    |          |       |           |          |
+- Xem chi tiết Task phòng khác   |   [x]    |  [x]  |    [R]    |   [-]    |    [-]
+- Tạo / Sửa / Kéo thả Task nội bộ|   [-]    |  [-]  |    [-]    |   [x]    |    [x]
+
+
+4. MÔ HÌNH DỮ LIỆU CHUẨN (GENERIC DATABASE SCHEMA)
+--------------------------------------------------------------------------------
+Mô hình hỗ trợ đa tổ chức (Multi-Tenant) kết hợp phân quyền theo phạm vi (Scoped Role):
+
+Table organizations (Doanh nghiệp khách hàng):
+- id: UUID (Primary Key)
+- name: VARCHAR (Tên đầy đủ của công ty, ví dụ: "Logistics Á Châu")
+- code: VARCHAR (Unique, Mã định danh viết liền không dấu, ví dụ: "achau", "smartlog", "foodlog")
+- plan: VARCHAR ('starter', 'pro', 'enterprise')
+- is_active: BOOLEAN
+- created_at: TIMESTAMP
+
+Table users (Người dùng hệ thống):
+- id: UUID (Primary Key)
+- org_id: UUID (Foreign Key -> organizations.id)
+- email: VARCHAR (Unique - Lưu định dạng UPN chuẩn: 'username@company_code', ví dụ: 'admin@achau', 'ketoan@achau')
+- password_hash: VARCHAR
+- name: VARCHAR
+- is_active: BOOLEAN
+- token_version: INT (Hỗ trợ logout tức thì / revoke token)
+
+Table roles (Danh mục vai trò):
+- id: INT (Primary Key)
+- key: VARCHAR (Unique: 'platform_owner', 'super_admin', 'executive', 'user', 'ws_owner', 'ws_member')
+- name: VARCHAR
+- is_system: BOOLEAN
+
+Table user_roles (Gán vai trò cho người dùng):
+- id: UUID (Primary Key)
+- user_id: UUID (Foreign Key -> users.id)
+- role_id: INT (Foreign Key -> roles.id)
+- tenant_id: UUID (Nullable: NULL = Vai trò toàn cục; UUID = Gắn riêng cho Workspace cụ thể)
+- granted_by: UUID
+- created_at: TIMESTAMP
+- INDEX: (user_id, role_id, tenant_id)
+
+Table workspaces (Không gian làm việc phòng ban):
+- id: UUID (Primary Key)
+- org_id: UUID (Foreign Key -> organizations.id)
+- owner_id: UUID (Foreign Key -> users.id)
+- name: VARCHAR
+- is_locked: BOOLEAN
+
+Table settings (Cấu hình hệ thống & Feature Flags):
+- key: VARCHAR (Primary Key, ví dụ: 'feature_flags')
+- value: JSONB (Lưu trạng thái bật tắt tính năng)
+
+
+5. CƠ CHẾ CÁCH LY DỮ LIỆU PHÒNG BAN (MULTI-TENANT DATA ISOLATION)
+--------------------------------------------------------------------------------
+Nguyên tắc cách ly:
+Mọi câu truy vấn dữ liệu (Query / Mutation) ĐỀU PHẢI lọc qua 2 tầng:
+1. Tầng Doanh nghiệp: WHERE org_id = current_user.org_id
+2. Tầng Phòng ban:
+   - Nếu là Nhân viên / Giám đốc thường:
+     WHERE id IN (SELECT tenant_id FROM user_roles WHERE user_id = current_user.id)
+     OR owner_id = current_user.id
+   - Nếu là Phó Giám Đốc (Executive) hoặc Super Admin:
+     Bỏ qua điều kiện (2), cho phép đọc tất cả Workspace thuộc cùng org_id.
+
+Kết quả:
+- Workspace A và Workspace B hoàn toàn không thấy nhau.
+- Phó Giám Đốc C đứng từ trên nhìn xuống thấy được cả A và B.
+
+
+5.1. CƠ CHẾ ĐỊNH DANH ĐA TỔ CHỨC (TENANT UPN IDENTITY) & TỰ ĐĂNG KÝ SAAS
+--------------------------------------------------------------------------------
+Bài toán thực tế:
+Nếu hệ thống cho phép Super-Admin của Công ty A và Công ty B tự do tạo tài khoản nhân viên,
+rất dễ xảy ra trường hợp cả 2 công ty cùng tạo username trùng tên (ví dụ: "ketoan", "admin", "it").
+Nếu dùng Email/Username Unique toàn cục thông thường, Công ty B sẽ bị báo lỗi "Đã tồn tại",
+gây lộ thông tin bảo mật và trải nghiệm khách hàng rất tệ.
+
+Giải pháp chuẩn kiến trúc B2B SaaS: Mô hình UPN (User Principal Name)
+Mọi tài khoản nhân sự được định danh theo công thức:
+  identifier = [username] @ [company_code]
+  (Ví dụ: ketoan@achau và ketoan@smartlog)
+
+1. LUỒNG KHÁCH HÀNG TỰ ĐĂNG KÝ DOANH NGHIỆP (SELF-SERVE ONBOARDING - /register-org):
+   - Khách hàng mới truy cập form Đăng ký Doanh nghiệp:
+     + Tên công ty: "Logistics Á Châu"
+     + Mã công ty (company_code): "achau" (Hệ thống tự động kiểm tra trùng `organizations.code`)
+     + Họ tên người quản trị: "Nguyễn Văn A"
+     + Username Admin: "admin" -> Hệ thống hiển thị: Tài khoản của bạn sẽ là: admin@achau
+     + Mật khẩu: "******"
+   - Backend thực thi trong 1 Database Transaction:
+     1. Tạo bản ghi `organizations` (name = "Logistics Á Châu", code = "achau", plan = "starter").
+     2. Tạo bản ghi `users` (email = "admin@achau", org_id = org.id, name = "Nguyễn Văn A").
+     3. Gán Role `super_admin` cho User này trong Organization.
+     4. Khởi tạo 1 Workspace mặc định: "Không gian làm việc chung" và gán quyền `ws_owner`.
+
+2. LUỒNG SUPER-ADMIN CÔNG TY TẠO NHÂN VIÊN NỘI BỘ:
+   - Khi Super-Admin của công ty A (achau) thêm nhân viên mới:
+     + Giao diện chỉ yêu cầu nhập tên đăng nhập: [ ketoan ] với hậu tố cố định [@achau].
+     + Backend tự động nối chuỗi: email = `${username}@${current_user.org.code}` (ví dụ: ketoan@achau).
+   - Khi Super-Admin của công ty B (smartlog) thêm nhân viên mới:
+     + Giao diện tự động nối chuỗi: ketoan@smartlog.
+   - Kết quả: `ketoan@achau` và `ketoan@smartlog` là 2 chuỗi hoàn toàn khác nhau trong Database,
+     không bao giờ bị xung đột Unique, không cần phụ thuộc vào DNS Wildcard Subdomain phức tạp!
+
+3. LUỒNG ĐĂNG NHẬP CHUNG (/login):
+   - Màn hình đăng nhập chỉ cần 2 ô kinh điển:
+     + Ô 1: Tên đăng nhập (ví dụ: admin@achau, ketoan@achau).
+     + Ô 2: Mật khẩu.
+   - Backend bóc tách:
+     const [username, companyCode] = identifier.split('@');
+     Hệ thống tìm kiếm trực tiếp qua `users.email = identifier`.
+     Từ đó tự động xác định chính xác User và Organization mà không cần ô chọn công ty riêng.
+
+
+6. HỆ THỐNG FEATURE FLAGS (BẬT / TẮT TÍNH NĂNG CỦA SAAS OWNER)
+--------------------------------------------------------------------------------
+Lưu trong bảng `settings` với cấu trúc JSONB:
+
+{
+  "default_flags": {
+    "module_ai_assistant": false,
+    "module_backup_gdrive": true,
+    "module_executive_dashboard": true,
+    "max_workspaces_per_org": 20,
+    "max_users_per_org": 100
+  },
+  "tenant_overrides": {
+    "org-uuid-cong-ty-x": {
+      "module_ai_assistant": true,
+      "max_users_per_org": 500
+    }
+  }
+}
+
+Cơ chế thực thi:
+Khi Doanh nghiệp gọi một API tính năng (ví dụ AI hoặc Backup), Backend chạy Middleware:
+- Kiểm tra tính năng có đang `true` hay không.
+- Nếu `false`: Trả về HTTP 403 Forbidden kèm thông báo "Tính năng chưa kích hoạt hoặc cần nâng cấp gói".
+
+
+7. THIẾT KẾ BACKEND GUARDS & MIDDLEWARE (MẪU CODE MINH HỌA)
+--------------------------------------------------------------------------------
+
+[A] Middleware kiểm tra Feature Flag:
+```javascript
+export function requireFeature(featureKey) {
+  return async (req, res, next) => {
+    const isEnabled = await checkFeatureFlag(req.user.orgId, featureKey);
+    if (!isEnabled) {
+      return res.status(403).json({
+        code: "FEATURE_DISABLED",
+        message: `Tính năng ${featureKey} chưa được kích hoạt cho gói của bạn.`
+      });
+    }
+    next();
+  };
+}
+```
+
+[B] Hàm Guard kiểm tra quyền truy cập Workspace:
+```javascript
+export async function assertWorkspaceAccess(user, workspaceId, requiredRole = 'ws_member') {
+  const ws = await db.workspace.findUnique({ where: { id: workspaceId } });
+  if (!ws || ws.orgId !== user.orgId) throw new NotFoundError("Workspace không tồn tại");
+
+  // 1. Super Admin và Platform Owner được toàn quyền
+  if (user.roles.includes('super_admin') || user.roles.includes('platform_owner')) {
+    return 'ws_owner';
+  }
+
+  // 2. Executive (Phó Giám Đốc) có quyền xem mọi workspace ở chế độ Read-only
+  if (user.roles.includes('executive')) {
+    if (requiredRole === 'ws_admin' || requiredRole === 'ws_owner') {
+      throw new ForbiddenError("Lãnh đạo chỉ có quyền giám sát, không chỉnh sửa trực tiếp.");
+    }
+    return 'ws_guest'; // Cho phép đọc
+  }
+
+  // 3. Giám đốc tạo workspace tự động là Owner
+  if (ws.ownerId === user.id) return 'ws_owner';
+
+  // 4. Kiểm tra role được gán trong bảng user_roles (tenant_id = workspaceId)
+  const membership = await db.userRole.findFirst({
+    where: { userId: user.id, tenantId: workspaceId }
+  });
+  if (!membership) throw new ForbiddenError("Bạn không có quyền truy cập Workspace này.");
+
+  return membership.roleKey;
+}
+```
+
+
+8. THIẾT KẾ FRONTEND GUARDS (UI & ROUTE PERMISSIONS)
+--------------------------------------------------------------------------------
+
+[A] Hook phân quyền dùng chung:
+```javascript
+export function usePermission() {
+  const { user } = useAuth();
+  const roles = user?.roles || [];
+
+  return {
+    isPlatformOwner: roles.includes('platform_owner'),
+    isSuperAdmin: roles.includes('super_admin'),
+    isExecutive: roles.includes('executive'),
+    canManageUsers: roles.includes('super_admin'),
+    canViewOverview: roles.includes('executive') || roles.includes('super_admin'),
+  };
+}
+```
+
+[B] Điều hướng Menu theo vai trò:
+- Nếu `isPlatformOwner` -> Hiển thị Menu: [Quản lý Release / Feature Flags / Quản lý Tenants]
+- Nếu `isSuperAdmin`    -> Hiển thị Menu: [Quản lý Nhân sự / Cấp quyền / Audit Log]
+- Nếu `isExecutive`      -> Mặc định vào: [Executive Overview Dashboard (Toàn công ty)]
+- Nếu `User thường (GĐ/NV)` -> Vào thẳng: [Danh sách Workspace của tôi]
+
+
+9. CHECKLIST TRIỂN KHAI CHO DỰ ÁN MỚI
+--------------------------------------------------------------------------------
+Khi mang mô hình này sang bất kỳ dự án nào (Node.js, Go, Python, Java):
+
+[ ] Bước 1: Thiết kế bảng `users`, `roles`, `user_roles` với cột `tenant_id` (nullable).
+[ ] Bước 2: Tạo seed dữ liệu:
+            - `platform_owner` (Bạn)
+            - `super_admin` (Khách hàng)
+            - `executive` (Phó Giám Đốc)
+            - `user` (Nhân viên thông thường)
+            - `ws_owner`, `ws_admin`, `ws_member` (Role phạm vi phòng ban).
+[ ] Bước 3: Thiết lập bảng `settings` chứa JSON Feature Flags.
+[ ] Bước 4: Viết middleware xác thực JWT Access Token kèm `token_version`.
+[ ] Bước 5: Viết 2 middleware chặn quyền:
+            - `requireFeature(flagName)`: Chặn tính năng chưa release/chưa mua.
+            - `authorize(requiredRole / requiredPerm)`: Chặn quyền thao tác.
+[ ] Bước 6: Xây dựng màn hình Overview Dashboard dành riêng cho vai trò `executive`.
+[ ] Bước 7: Kiểm thử tính cô lập dữ liệu (Workspace A thử gọi API đọc dữ liệu Workspace B -> Đảm bảo trả 403 Forbidden).
+
+================================================================================
+KẾT THÚC BẢN ĐẶC TẢ
+================================================================================

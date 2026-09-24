@@ -100,14 +100,119 @@ export async function setupSuperAdmin(email, plainPassword, name, ip) {
   return { userId: user.id, tokens };
 }
 
+export async function checkOrgCodeAvailable(code) {
+  const normalized = String(code || "").trim().toLowerCase();
+  if (!normalized || normalized.length < 2) return { available: false, code: normalized };
+  const existing = await prisma.organization.findUnique({
+    where: { code: normalized },
+    select: { id: true },
+  });
+  return { available: !existing, code: normalized };
+}
+
+// B2B Self-Serve Onboarding: Khách hàng tự đăng ký Doanh nghiệp và nhận quyền super_admin
+export async function registerOrganization({ orgName, orgCode, name, username, password }, ip, ctx = {}) {
+  const cleanOrgCode = String(orgCode).trim().toLowerCase();
+  const cleanUsername = String(username).trim().toLowerCase();
+  const upn = `${cleanUsername}@${cleanOrgCode}`;
+
+  const existingOrg = await prisma.organization.findUnique({
+    where: { code: cleanOrgCode },
+  });
+  if (existingOrg) throw Conflict("Mã công ty đã tồn tại, vui lòng chọn mã khác.", "ORG_CODE_TAKEN");
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email: upn },
+  });
+  if (existingUser) throw Conflict(`Tài khoản ${upn} đã tồn tại trong hệ thống.`, "USER_TAKEN");
+
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+  const [superRole, wsOwnerRole] = await Promise.all([
+    prisma.role.findUnique({ where: { key: "super_admin" } }),
+    prisma.role.findUnique({ where: { key: "ws_owner" } }),
+  ]);
+  if (!superRole) throw BadRequest("Roles are not seeded yet", "ROLES_MISSING");
+
+  const { user, org, workspace } = await prisma.$transaction(async (tx) => {
+    const org = await tx.organization.create({
+      data: {
+        name: orgName.trim(),
+        code: cleanOrgCode,
+        plan: "starter",
+        isActive: true,
+      },
+    });
+
+    const user = await tx.user.create({
+      data: {
+        email: upn,
+        passwordHash,
+        name: name.trim(),
+        orgId: org.id,
+        isActive: true,
+      },
+    });
+
+    await tx.userRole.create({
+      data: {
+        userId: user.id,
+        roleId: superRole.id,
+        tenantId: null,
+        grantedBy: user.id,
+      },
+    });
+
+    const workspace = await tx.workspace.create({
+      data: {
+        name: "Không gian làm việc chung",
+        orgId: org.id,
+        ownerId: user.id,
+        visibility: "private",
+      },
+    });
+
+    if (wsOwnerRole) {
+      await tx.userRole.create({
+        data: {
+          userId: user.id,
+          roleId: wsOwnerRole.id,
+          tenantId: workspace.id,
+          grantedBy: user.id,
+        },
+      });
+    }
+
+    return { user, org, workspace };
+  });
+
+  logAudit({
+    actorId: user.id,
+    action: "auth.register_org",
+    metadata: { orgId: org.id, orgCode: org.code, email: upn },
+    ipAddress: ip,
+  });
+
+  const tokens = await issueTokens(user.id, user.tokenVersion, { ipAddress: ip, userAgent: ctx.userAgent });
+  return { userId: user.id, org, workspace, upn, tokens };
+}
+
 export async function login(email, plainPassword, ip, ctx = {}) {
-  const user = await prisma.user.findUnique({ where: { email } });
+  const identifier = String(email || "").trim().toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: identifier },
+        { email: { equals: identifier, mode: "insensitive" } },
+      ],
+    },
+  });
   const ok = user && (await bcrypt.compare(plainPassword, user.passwordHash));
   if (!user || !ok) {
     logAudit({
       actorId: user?.id ?? "00000000-0000-0000-0000-000000000000",
       action: "auth.login.failed",
-      metadata: { email },
+      metadata: { email: identifier },
       ipAddress: ip,
     });
     throw Unauthorized("INVALID_CREDENTIALS", "Invalid email or password");

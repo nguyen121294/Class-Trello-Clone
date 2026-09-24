@@ -91,9 +91,24 @@ async function exportUploads(stageDir, outFile) {
   fs.rmSync(upDir, { recursive: true, force: true });
 }
 
-async function exportConfigs(outFile) {
-  const settings = await prisma.setting.findMany();
-  fs.writeFileSync(outFile, JSON.stringify(settings, null, 2));
+async function exportConfigs(workDir) {
+  const infraSnapshotDir = "/infra-snapshot";
+  if (fs.existsSync(infraSnapshotDir)) {
+    const outFile = path.join(workDir, "configs.tar.gz");
+    await run("tar", [
+      "-czf",
+      outFile,
+      "--exclude=.git",
+      "--exclude=node_modules",
+      "-C",
+      infraSnapshotDir,
+      ".",
+    ]);
+  } else {
+    const outFile = path.join(workDir, "configs.json");
+    const settings = await prisma.setting.findMany();
+    fs.writeFileSync(outFile, JSON.stringify(settings, null, 2));
+  }
 }
 
 /* ----------------------------------------------------------- orchestrate */
@@ -135,7 +150,7 @@ export async function executeRun(runId) {
     }
     if (s.scopeConfigs) {
       tap("exporting configs");
-      await exportConfigs(path.join(work, "configs.json"));
+      await exportConfigs(work);
     }
 
     if (!s.gdriveRefreshToken) throw new Error("Google Drive not connected");
@@ -207,7 +222,7 @@ export async function triggerManual(actorId, ctx) {
 
 export { getSettings, DEFAULTS };
 
-const EDITABLE = ["enabled", "cronExpr", "retentionCount", "scopeDb", "scopeUploads", "scopeConfigs", "remoteFolder"];
+const EDITABLE = ["enabled", "cronExpr", "retentionCount", "scopeDb", "scopeUploads", "scopeConfigs", "remoteFolder", "rcloneRemote"];
 
 export async function updateSettings(actorId, patch, ctx) {
   const clean = {};
