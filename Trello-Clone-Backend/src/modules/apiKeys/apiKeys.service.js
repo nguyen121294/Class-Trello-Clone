@@ -84,7 +84,7 @@ export async function listUserKeys(userId) {
   }));
 }
 
-export async function createKey(userId, { name, scopes, expiresAt }) {
+export async function createKey(userId, { name, scopes, expiresAt, expiresInDays }) {
   const settings = await getAdminSettings();
 
   if (!settings.allowUserApiKeys) {
@@ -114,6 +114,10 @@ export async function createKey(userId, { name, scopes, expiresAt }) {
     if (parsedExpiry <= now) {
       throw BadRequest("Ngày hết hạn phải ở thời điểm tương lai");
     }
+  } else if (expiresInDays !== undefined && expiresInDays !== null) {
+    if (Number(expiresInDays) > 0) {
+      parsedExpiry = new Date(now.getTime() + Number(expiresInDays) * 24 * 60 * 60 * 1000);
+    } // If 0, parsedExpiry remains null (Never expires)
   } else if (settings.maxExpiryDays && settings.maxExpiryDays > 0) {
     // Apply default max expiry if user didn't specify
     parsedExpiry = new Date(now.getTime() + settings.maxExpiryDays * 24 * 60 * 60 * 1000);

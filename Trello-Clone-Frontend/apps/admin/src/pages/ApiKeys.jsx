@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card, Button, Input, Select, Badge, Modal, EmptyState,
@@ -14,28 +14,22 @@ import { Table, Pagination } from '../components/Table';
 import { Alert, CopyField } from '../components/ui';
 import { usePagination } from '../lib/usePagination';
 import { useDebounced } from '../lib/useDebounced';
-import { RowsSkeleton } from '../components/PageSkeleton';
 
-const ALL_SCOPES = [
-  { id: 'boards:read', label: 'Boards: Read', category: 'Boards & Lists' },
-  { id: 'boards:write', label: 'Boards: Write', category: 'Boards & Lists' },
-  { id: 'lists:read', label: 'Lists: Read', category: 'Boards & Lists' },
-  { id: 'lists:write', label: 'Lists: Write', category: 'Boards & Lists' },
-  { id: 'cards:read', label: 'Cards: Read', category: 'Cards' },
-  { id: 'cards:write', label: 'Cards: Write', category: 'Cards' },
-  { id: 'workspaces:read', label: 'Workspaces: Read', category: 'Workspaces' },
-  { id: 'workspaces:write', label: 'Workspaces: Write', category: 'Workspaces' },
-  { id: 'comments:read', label: 'Comments: Read', category: 'Collaboration' },
-  { id: 'comments:write', label: 'Comments: Write', category: 'Collaboration' },
-  { id: 'attachments:read', label: 'Attachments: Read', category: 'Collaboration' },
-  { id: 'attachments:write', label: 'Attachments: Write', category: 'Collaboration' },
-  { id: 'activities:read', label: 'Activities: Read', category: 'Intelligence' },
-  { id: 'gantt:read', label: 'Gantt Chart: Read', category: 'Intelligence' },
-];
-
-const READ_ONLY_SCOPES = [
-  'boards:read', 'cards:read', 'lists:read', 'workspaces:read',
-  'comments:read', 'attachments:read', 'activities:read', 'gantt:read',
+const FALLBACK_SCOPES = [
+  { key: 'workspaces:read', label: 'Read Workspaces', category: 'Workspaces', desc: 'Xem danh sách và thông tin không gian làm việc' },
+  { key: 'boards:read', label: 'Read Boards', category: 'Boards & Lists', desc: 'Xem danh sách bảng, cấu hình nhãn, custom fields, thành viên' },
+  { key: 'lists:read', label: 'Read Lists', category: 'Boards & Lists', desc: 'Xem các cột và danh sách công việc' },
+  { key: 'cards:read', label: 'Read Cards', category: 'Cards', desc: 'Xem thẻ công việc, checklist, hạn chót, độ ưu tiên' },
+  { key: 'comments:read', label: 'Read Comments', category: 'Content & Attachments', desc: 'Đọc bình luận trao đổi trên thẻ' },
+  { key: 'attachments:read', label: 'Read Attachments', category: 'Content & Attachments', desc: 'Xem tệp đính kèm và link tải S3' },
+  { key: 'activity:read', label: 'Read Activities', category: 'Planning & Tracking', desc: 'Xem lịch sử hoạt động và nhật ký thay đổi' },
+  { key: 'milestones:read', label: 'Read Milestones', category: 'Planning & Tracking', desc: 'Xem các cột mốc dự án và ngày mục tiêu' },
+  { key: 'gantt:read', label: 'Read Gantt & Dependencies', category: 'Planning & Tracking', desc: 'Xem quan hệ phụ thuộc giữa các công việc' },
+  { key: 'reports:read', label: 'Read Weekly Reports', category: 'Planning & Tracking', desc: 'Xem các kỳ báo cáo tuần và check-in chấm công' },
+  { key: 'search:read', label: 'Search Content', category: 'Overview & Dashboard', desc: 'Tìm kiếm văn bản trên toàn hệ thống' },
+  { key: 'me:read', label: 'Read Profile & Dashboard', category: 'Overview & Dashboard', desc: 'Xem dashboard cá nhân và thông tin người dùng' },
+  { key: 'notifications:read', label: 'Read Notifications', category: 'Overview & Dashboard', desc: 'Xem thông báo cá nhân' },
+  { key: 'executive:read', label: 'Read Executive Overview', category: 'Overview & Dashboard', desc: 'Xem báo cáo tổng hợp KPI toàn doanh nghiệp' },
 ];
 
 function fmtDate(d) {
@@ -75,21 +69,37 @@ export function ApiKeysPage() {
   // Form state for creating a new key
   const [keyName, setKeyName] = useState('');
   const [expiresInDays, setExpiresInDays] = useState('90');
-  const [selectedScopes, setSelectedScopes] = useState(READ_ONLY_SCOPES);
+  const [selectedScopes, setSelectedScopes] = useState([
+    'workspaces:read', 'boards:read', 'lists:read', 'cards:read', 'comments:read',
+    'attachments:read', 'activity:read', 'gantt:read', 'me:read',
+  ]);
 
-  // Governance settings form
-  const [configForm, setConfigForm] = useState(null);
+  // 1. Fetch Valid Scopes from Backend
+  const scopesQuery = useQuery({
+    queryKey: ['api-keys', 'scopes'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api-keys/scopes');
+        return Array.isArray(res.data) ? res.data : FALLBACK_SCOPES;
+      } catch {
+        return FALLBACK_SCOPES;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  // 1. Fetch All API Keys (Admin)
+  const availableScopesList = scopesQuery.data || FALLBACK_SCOPES;
+
+  // 2. Fetch All API Keys (Admin)
   const allKeys = useQuery({
     queryKey: ['admin', 'api-keys', search, statusFilter, page, pageSize],
     queryFn: async () => {
       const res = await api.get('/api-keys/admin', {
         params: {
-          search: search || undefined,
+          q: search || undefined,
           status: statusFilter !== 'all' ? statusFilter : undefined,
           page,
-          pageSize,
+          limit: pageSize,
         },
       });
       return res.data;
@@ -98,21 +108,21 @@ export function ApiKeysPage() {
     placeholderData: (prev) => prev,
   });
 
-  // 2. Fetch My Keys
+  // 3. Fetch My Keys
   const myKeys = useQuery({
     queryKey: ['my-api-keys'],
     queryFn: async () => {
       const res = await api.get('/api-keys/me');
-      return res.data;
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
     enabled: activeTab === 'my',
   });
 
-  // 3. Fetch Config
-  const config = useQuery({
-    queryKey: ['admin', 'api-keys', 'config'],
+  // 4. Fetch Governance Settings
+  const settingsQuery = useQuery({
+    queryKey: ['admin', 'api-keys', 'settings'],
     queryFn: async () => {
-      const res = await api.get('/api-keys/admin/config');
+      const res = await api.get('/api-keys/admin/settings');
       return res.data;
     },
     enabled: activeTab === 'config' || isSuper,
@@ -125,66 +135,66 @@ export function ApiKeysPage() {
       qc.invalidateQueries({ queryKey: ['my-api-keys'] });
       qc.invalidateQueries({ queryKey: ['admin', 'api-keys'] });
       setCreateModalOpen(false);
-      setNewKeyCreated(res.data?.data);
+      setNewKeyCreated(res.data);
       setKeyName('');
-      setSelectedScopes(READ_ONLY_SCOPES);
       toast.success('API Key created successfully!');
     },
     onError: (err) => {
-      toast.error(err.response?.data?.message || 'Failed to create API Key');
+      const msg = err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to create API Key';
+      toast.error(msg);
     },
   });
 
-  // Mutation: Toggle Status (Admin)
-  const toggleStatusMutation = useMutation({
-    mutationFn: ({ id, isRevoked }) => api.patch(`/api-keys/admin/${id}/status`, { isRevoked }),
+  // Mutation: Revoke Admin Key
+  const revokeAdminMutation = useMutation({
+    mutationFn: ({ id, reason }) => api.post(`/api-keys/admin/${id}/revoke`, { reason }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'api-keys'] });
       qc.invalidateQueries({ queryKey: ['my-api-keys'] });
-      toast.success('API Key status updated.');
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || 'Failed to update status');
-    },
-  });
-
-  // Mutation: Delete/Revoke My Key
-  const revokeMyKeyMutation = useMutation({
-    mutationFn: (id) => api.delete(`/api-keys/me/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['my-api-keys'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'api-keys'] });
-      toast.success('API Key revoked.');
+      toast.success('API Key has been revoked.');
     },
     onError: (err) => {
       toast.error(err.response?.data?.message || 'Failed to revoke API Key');
     },
   });
 
-  // Mutation: Save Config
-  const saveConfigMutation = useMutation({
-    mutationFn: (patch) => api.patch('/api-keys/admin/config', patch),
-    onSuccess: (res) => {
-      qc.setQueryData(['admin', 'api-keys', 'config'], res.data);
-      toast.success('Governance settings saved.');
+  // Mutation: Revoke My Key
+  const revokeMyKeyMutation = useMutation({
+    mutationFn: (id) => api.delete(`/api-keys/me/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-api-keys'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'api-keys'] });
+      toast.success('Your API Key has been revoked.');
     },
     onError: (err) => {
-      toast.error(err.response?.data?.message || 'Failed to save configuration');
+      toast.error(err.response?.data?.message || 'Failed to revoke API Key');
+    },
+  });
+
+  // Mutation: Save Settings
+  const saveSettingsMutation = useMutation({
+    mutationFn: (patch) => api.patch('/api-keys/admin/settings', patch),
+    onSuccess: (res) => {
+      qc.setQueryData(['admin', 'api-keys', 'settings'], res.data);
+      toast.success('Governance settings saved successfully.');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Failed to save settings');
     },
   });
 
   const onRevokeAdmin = async (keyItem) => {
-    const doRevoke = !keyItem.isRevoked;
     const ok = await confirm({
-      title: doRevoke ? 'Revoke API Key' : 'Reactivate API Key',
-      message: doRevoke
-        ? `Are you sure you want to revoke "${keyItem.name}" (${keyItem.keyPrefix}...)? Any clients using this key will immediately lose access.`
-        : `Reactivate "${keyItem.name}"? Access will be restored.`,
-      confirmText: doRevoke ? 'Revoke Key' : 'Reactivate',
-      danger: doRevoke,
+      title: 'Revoke API Key',
+      message: `Revoke key "${keyItem.name}" (${keyItem.keyPrefix}...)? Any MCP server or application using this key will immediately lose access.`,
+      confirmText: 'Revoke Key',
+      danger: true,
     });
     if (ok) {
-      toggleStatusMutation.mutate({ id: keyItem.id, isRevoked: doRevoke });
+      revokeAdminMutation.mutate({
+        id: keyItem.id,
+        reason: 'Revoked by administrator from web console',
+      });
     }
   };
 
@@ -200,9 +210,9 @@ export function ApiKeysPage() {
     }
   };
 
-  const toggleScope = (scopeId) => {
+  const toggleScope = (scopeKey) => {
     setSelectedScopes((prev) =>
-      prev.includes(scopeId) ? prev.filter((s) => s !== scopeId) : [...prev, scopeId]
+      prev.includes(scopeKey) ? prev.filter((s) => s !== scopeKey) : [...prev, scopeKey]
     );
   };
 
@@ -216,22 +226,41 @@ export function ApiKeysPage() {
       toast.error('Please select at least one permission scope');
       return;
     }
+
+    let expiresAt = null;
+    const days = Number(expiresInDays);
+    if (days > 0) {
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + days);
+      expiresAt = expDate.toISOString();
+    }
+
     createKeyMutation.mutate({
       name: keyName.trim(),
       scopes: selectedScopes,
-      expiresInDays: Number(expiresInDays),
+      expiresAt,
+      expiresInDays: days,
     });
   };
 
-  // Grouped scopes for the modal
+  // Group scopes by category
   const scopesByCategory = useMemo(() => {
     const map = {};
-    ALL_SCOPES.forEach((s) => {
-      if (!map[s.category]) map[s.category] = [];
-      map[s.category].push(s);
+    availableScopesList.forEach((s) => {
+      let category = s.category;
+      if (!category) {
+        if (s.key.startsWith('workspaces:')) category = 'Workspaces';
+        else if (s.key.startsWith('boards:') || s.key.startsWith('lists:')) category = 'Boards & Lists';
+        else if (s.key.startsWith('cards:')) category = 'Cards';
+        else if (s.key.startsWith('comments:') || s.key.startsWith('attachments:')) category = 'Content & Attachments';
+        else if (s.key.startsWith('activity:') || s.key.startsWith('milestones:') || s.key.startsWith('gantt:') || s.key.startsWith('reports:')) category = 'Planning & Tracking';
+        else category = 'Overview & Dashboard';
+      }
+      if (!map[category]) map[category] = [];
+      map[category].push(s);
     });
     return map;
-  }, []);
+  }, [availableScopesList]);
 
   // Columns for All Keys (Admin)
   const adminColumns = [
@@ -291,7 +320,7 @@ export function ApiKeysPage() {
       key: 'status',
       header: 'Status',
       align: 'center',
-      render: (k) => <StatusBadge isRevoked={k.isRevoked} expiresAt={k.expiresAt} />,
+      render: (k) => <StatusBadge isRevoked={!!k.revokedAt} expiresAt={k.expiresAt} />,
     },
     {
       key: 'rateLimit',
@@ -317,14 +346,16 @@ export function ApiKeysPage() {
       header: 'Actions',
       align: 'right',
       render: (k) => (
-        <Button
-          size="sm"
-          variant={k.isRevoked ? 'secondary' : 'danger'}
-          onClick={() => onRevokeAdmin(k)}
-          loading={toggleStatusMutation.isPending}
-        >
-          {k.isRevoked ? 'Reactivate' : 'Revoke'}
-        </Button>
+        !k.revokedAt && (
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => onRevokeAdmin(k)}
+            loading={revokeAdminMutation.isPending}
+          >
+            Revoke
+          </Button>
+        )
       ),
     },
   ];
@@ -373,7 +404,7 @@ export function ApiKeysPage() {
       key: 'status',
       header: 'Status',
       align: 'center',
-      render: (k) => <StatusBadge isRevoked={k.isRevoked} expiresAt={k.expiresAt} />,
+      render: (k) => <StatusBadge isRevoked={!!k.revokedAt} expiresAt={k.expiresAt} />,
     },
     {
       key: 'created',
@@ -395,7 +426,7 @@ export function ApiKeysPage() {
       header: '',
       align: 'right',
       render: (k) => (
-        !k.isRevoked && (
+        !k.revokedAt && (
           <Button
             size="sm"
             variant="danger"
@@ -409,9 +440,10 @@ export function ApiKeysPage() {
     },
   ];
 
-  const adminRows = allKeys.data?.data || [];
-  const myRows = myKeys.data?.data || [];
-  const currentConfig = config.data?.data;
+  const adminRows = allKeys.data?.items || [];
+  const totalAdminCount = allKeys.data?.total || 0;
+  const myRows = Array.isArray(myKeys.data) ? myKeys.data : [];
+  const currentSettings = settingsQuery.data || {};
 
   return (
     <div>
@@ -427,7 +459,7 @@ export function ApiKeysPage() {
               onClick={() => {
                 if (activeTab === 'all') allKeys.refetch();
                 if (activeTab === 'my') myKeys.refetch();
-                if (activeTab === 'config') config.refetch();
+                if (activeTab === 'config') settingsQuery.refetch();
               }}
             >
               Refresh
@@ -534,11 +566,11 @@ export function ApiKeysPage() {
             emptyDescription={search ? 'No keys matched your search filter.' : 'No API keys have been generated yet.'}
           />
 
-          {allKeys.data?.pagination && (
+          {totalAdminCount > pageSize && (
             <Pagination
               page={page}
               pageSize={pageSize}
-              total={allKeys.data.pagination.total}
+              total={totalAdminCount}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
             />
@@ -593,9 +625,11 @@ export function ApiKeysPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 const form = e.target;
-                saveConfigMutation.mutate({
+                saveSettingsMutation.mutate({
                   maxKeysPerUser: Number(form.maxKeys.value),
                   defaultRateLimit: Number(form.rateLimit.value),
+                  allowUserApiKeys: form.allowUserApiKeys.checked,
+                  maxExpiryDays: Number(form.maxExpiryDays.value),
                 });
               }}
               style={{ display: 'flex', flexDirection: 'column', gap: space.base }}
@@ -606,7 +640,7 @@ export function ApiKeysPage() {
                 type="number"
                 min="1"
                 max="50"
-                defaultValue={currentConfig?.maxKeysPerUser ?? 5}
+                defaultValue={currentSettings.maxKeysPerUser ?? 5}
                 helper="Limits how many active keys an individual user can hold simultaneously."
               />
 
@@ -616,12 +650,34 @@ export function ApiKeysPage() {
                 type="number"
                 min="10"
                 max="10000"
-                defaultValue={currentConfig?.defaultRateLimit ?? 120}
+                defaultValue={currentSettings.defaultRateLimit ?? 120}
                 helper="Enforced via Redis sliding-window per API key."
               />
 
+              <Input
+                label="Maximum expiration (Days)"
+                name="maxExpiryDays"
+                type="number"
+                min="1"
+                max="3650"
+                defaultValue={currentSettings.maxExpiryDays ?? 365}
+                helper="Default lifetime cap for generated keys (e.g. 365 days)."
+              />
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: space.sm, cursor: 'pointer', marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  name="allowUserApiKeys"
+                  defaultChecked={currentSettings.allowUserApiKeys ?? true}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 14, fontWeight: 500, color: color.text }}>
+                  Allow regular users to generate self-service API Keys
+                </span>
+              </label>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: space.sm }}>
-                <Button type="submit" loading={saveConfigMutation.isPending}>
+                <Button type="submit" loading={saveSettingsMutation.isPending}>
                   Save Changes
                 </Button>
               </div>
@@ -630,15 +686,15 @@ export function ApiKeysPage() {
 
           <Card>
             <h3 style={{ fontFamily: font.display, fontSize: 15, fontWeight: 700, color: color.text, margin: '0 0 8px 0' }}>
-              Available Permission Scopes
+              Available Permission Scopes ({availableScopesList.length})
             </h3>
             <p style={{ color: color.textMuted, fontSize: 13, margin: '0 0 16px 0' }}>
-              These 14 scopes are supported by the backend auth guard:
+              These scopes are strictly validated by the backend auth guard:
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_SCOPES.map((s) => (
-                <Badge key={s.id} kind="primary" style={{ padding: '4px 10px', fontSize: 12 }}>
-                  {s.id}
+              {availableScopesList.map((s) => (
+                <Badge key={s.key} kind="primary" style={{ padding: '4px 10px', fontSize: 12 }}>
+                  {s.key}
                 </Badge>
               ))}
             </div>
@@ -687,14 +743,17 @@ export function ApiKeysPage() {
                 <Button
                   size="sm"
                   variant="subtle"
-                  onClick={() => setSelectedScopes(READ_ONLY_SCOPES)}
+                  onClick={() => setSelectedScopes([
+                    'workspaces:read', 'boards:read', 'lists:read', 'cards:read',
+                    'comments:read', 'attachments:read', 'activity:read', 'gantt:read', 'me:read',
+                  ])}
                 >
                   Read-Only (MCP)
                 </Button>
                 <Button
                   size="sm"
                   variant="subtle"
-                  onClick={() => setSelectedScopes(ALL_SCOPES.map((s) => s.id))}
+                  onClick={() => setSelectedScopes(availableScopesList.map((s) => s.key))}
                 >
                   All Scopes
                 </Button>
@@ -709,7 +768,7 @@ export function ApiKeysPage() {
             </div>
 
             <div style={{
-              maxHeight: 240, overflowY: 'auto', border: `1px solid ${color.border}`,
+              maxHeight: 250, overflowY: 'auto', border: `1px solid ${color.border}`,
               borderRadius: radius.base, padding: space.sm, display: 'flex', flexDirection: 'column', gap: space.sm,
             }}>
               {Object.entries(scopesByCategory).map(([cat, scopes]) => (
@@ -722,10 +781,11 @@ export function ApiKeysPage() {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     {scopes.map((s) => {
-                      const checked = selectedScopes.includes(s.id);
+                      const checked = selectedScopes.includes(s.key);
                       return (
                         <label
-                          key={s.id}
+                          key={s.key}
+                          title={s.desc}
                           style={{
                             display: 'flex', alignItems: 'center', gap: space.sm,
                             padding: '6px 8px', borderRadius: radius.base, cursor: 'pointer',
@@ -737,11 +797,11 @@ export function ApiKeysPage() {
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() => toggleScope(s.id)}
+                            onChange={() => toggleScope(s.key)}
                             style={{ cursor: 'pointer' }}
                           />
                           <span style={{ fontWeight: checked ? 600 : 400, color: checked ? color.blue : color.text }}>
-                            {s.label}
+                            {s.label || s.key}
                           </span>
                         </label>
                       );
@@ -751,7 +811,7 @@ export function ApiKeysPage() {
               ))}
             </div>
             <div style={{ fontSize: 12, color: color.textMuted, marginTop: 4 }}>
-              Selected: {selectedScopes.length} of {ALL_SCOPES.length} scopes
+              Selected: {selectedScopes.length} of {availableScopesList.length} scopes
             </div>
           </div>
 
@@ -782,7 +842,7 @@ export function ApiKeysPage() {
             <label style={{ fontSize: 13, fontWeight: 600, color: color.text, display: 'block', marginBottom: 6 }}>
               Secret Token ({newKeyCreated?.name})
             </label>
-            <CopyField value={newKeyCreated?.key} mono />
+            <CopyField value={newKeyCreated?.plaintext || newKeyCreated?.key} mono />
           </div>
 
           <div style={{
@@ -796,7 +856,7 @@ export function ApiKeysPage() {
               display: 'block', fontFamily: font.mono, fontSize: 12,
               color: color.text, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
             }}>
-              {`TRELLO_API_URL=http://103.82.193.221:4000/api\nTRELLO_API_KEY=${newKeyCreated?.key}`}
+              {`TRELLO_API_URL=http://103.82.193.221:4000/api\nTRELLO_API_KEY=${newKeyCreated?.plaintext || newKeyCreated?.key}`}
             </code>
           </div>
 

@@ -28,6 +28,7 @@ export const createApiKeySchema = z.object({
       message: "Chứa scope không hợp lệ trong hệ thống",
     }),
   expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+  expiresInDays: z.number().int().min(0).max(3650).optional(),
 });
 
 export const updateApiKeySchema = z.object({
