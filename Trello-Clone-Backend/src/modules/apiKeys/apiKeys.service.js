@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../../config/db.js";
 import { redis } from "../../config/redis.js";
-import { BadRequest, Forbidden, NotFound, TooManyRequests, Unauthorized } from "../../lib/errors.js";
+import { AppError, BadRequest, Forbidden, NotFound, Unauthorized } from "../../lib/errors.js";
 import { AVAILABLE_SCOPES } from "./apiKeys.schema.js";
 
 const DEFAULT_SETTINGS = {
@@ -368,7 +368,8 @@ export async function verifyAndRateLimitKey(rawKey) {
   }
 
   if (currentCount > apiKey.rateLimit) {
-    throw TooManyRequests(
+    throw new AppError(
+      429,
       "RATE_LIMITED",
       `API Key vượt quá giới hạn ${apiKey.rateLimit} lượt gọi / phút. Vui lòng thử lại sau ít phút.`
     );
