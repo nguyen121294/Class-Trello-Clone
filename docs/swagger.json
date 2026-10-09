@@ -1,0 +1,2995 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Trello Clone REST API - TMS Project",
+    "version": "1.0.0",
+    "description": "Hệ thống REST API hoàn chỉnh cho nền tảng Quản lý Dự án & Cộng tác Doanh nghiệp (Trello Clone B2B).\nBao gồm quản lý Workspaces, Boards, Lists, Cards, Checklists, Gantt Dependencies, Milestones, Báo cáo Tuần TMS (Weekly Reports), Client Portal, Phân quyền RBAC, Sao lưu Google Drive & Zalo Webhook.\n\n### Máy chủ Kết nối:\n- **Production (HTTPS)**: https://api-project.iesupplychain.com\n- **Direct VPS (HTTP)**: http://103.82.193.221:4000\n- **Local Dev**: http://localhost:4000\n\n### Xác thực (Authentication):\n- Hầu hết các API bảo mật yêu cầu Header: `Authorization: Bearer <accessToken>`.\n- Lấy token qua endpoint: `POST /api/auth/login` với tài khoản Quản trị:\n  - **Email**: `admin@trello.local`\n  - **Password**: `Admin@123456`\n",
+    "contact": {
+      "name": "Trello Clone Support Team",
+      "email": "admin@trello.local"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://103.82.193.221:4000",
+      "description": "Direct VPS Server (Ubuntu 24.04 Port 4000)"
+    },
+    {
+      "url": "https://api-project.iesupplychain.com",
+      "description": "Production Domain (HTTPS Netlify DNS)"
+    },
+    {
+      "url": "http://localhost:4000",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Nhập JWT Access Token nhận được từ POST /api/auth/login"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Hệ thống & Giám sát",
+      "description": "Health check, Prometheus metrics"
+    },
+    {
+      "name": "Xác thực & Tài khoản (Auth)",
+      "description": "Đăng nhập, đăng ký, cấp lại token, đổi mật khẩu"
+    },
+    {
+      "name": "Hồ sơ Cá nhân (Me & Users)",
+      "description": "Hồ sơ cá nhân, cài đặt người dùng, sessions, tìm kiếm user"
+    },
+    {
+      "name": "Không gian làm việc (Workspaces)",
+      "description": "Quản lý workspace, thành viên, liên kết mời"
+    },
+    {
+      "name": "Bảng công việc (Boards)",
+      "description": "Quản lý boards, thành viên, sao chép, nhãn, mẫu thẻ"
+    },
+    {
+      "name": "Danh sách cột (Lists)",
+      "description": "Tạo cột, sắp xếp, di chuyển, lưu trữ thẻ"
+    },
+    {
+      "name": "Thẻ công việc (Cards)",
+      "description": "Quản lý thẻ, di chuyển, gắn nhãn, thành viên, theo dõi"
+    },
+    {
+      "name": "Bình luận & Cảm xúc (Comments & Reactions)",
+      "description": "Thảo luận, gắn thẻ @mentions, thả emoji reaction"
+    },
+    {
+      "name": "Danh sách kiểm tra (Checklists)",
+      "description": "Checklists con trong thẻ, công việc hoàn thành"
+    },
+    {
+      "name": "Trường tùy chỉnh (Custom Fields)",
+      "description": "Quản lý thuộc tính động cho Board và Card"
+    },
+    {
+      "name": "Tệp đính kèm (Attachments)",
+      "description": "Upload S3/MinIO, presigned URL, download"
+    },
+    {
+      "name": "Tìm kiếm & Thông báo (Search & Notifications)",
+      "description": "Tìm kiếm toàn cục và thông báo tức thời"
+    },
+    {
+      "name": "Tổ chức & Giám sát Lãnh đạo (B2B Enterprise)",
+      "description": "Quản lý tổ chức và Executive Dashboard đa dự án"
+    },
+    {
+      "name": "Mốc tiến độ & Phụ thuộc Gantt (Gantt & Milestones)",
+      "description": "Quản lý Milestone và ràng buộc công việc Cascade Push"
+    },
+    {
+      "name": "Báo cáo tuần & Điểm danh (Weekly Report & Checkins)",
+      "description": "Tự động sinh báo cáo tuần TMS, xuất HTML/PDF, chấm công"
+    },
+    {
+      "name": "Cổng Khách hàng (Client Portal)",
+      "description": "Cổng xem tiến độ dự án bảo mật dành cho đối tác/khách hàng"
+    },
+    {
+      "name": "Quản trị Hệ thống (Admin & RBAC)",
+      "description": "Quản lý người dùng, phân quyền roles/permissions, audit log, MinIO storage"
+    },
+    {
+      "name": "Sao lưu & Khôi phục (Backup)",
+      "description": "Sao lưu Database/Storage tự động hoặc thủ công lên Google Drive"
+    },
+    {
+      "name": "Trang đích (Landing Page)",
+      "description": "Cấu hình và hiển thị dữ liệu trang chủ giới thiệu"
+    },
+    {
+      "name": "Tích hợp Zalo (Zalo Webhook)",
+      "description": "Webhook nhận tin nhắn và cấu hình tương tác Zalo"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Hệ thống & Giám sát"
+        ],
+        "summary": "Kiểm tra sức khỏe hệ thống (Health Check)",
+        "description": "Trả về trạng thái hoạt động của PostgreSQL Database và Redis Cache.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Hệ thống hoạt động bình thường (OK)"
+          },
+          "503": {
+            "description": "Dịch vụ gián đoạn (Degraded)"
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "Hệ thống & Giám sát"
+        ],
+        "summary": "Xuất dữ liệu Prometheus Metrics",
+        "description": "Cung cấp số liệu giám sát CPU, RAM, thời gian phản hồi HTTP cho Prometheus / Grafana.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Text format Prometheus metrics"
+          }
+        }
+      }
+    },
+    "/api/auth/setup-status": {
+      "get": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Kiểm tra trạng thái cài đặt hệ thống",
+        "description": "Xác định hệ thống đã có tài khoản Super Admin hay cần khởi tạo ban đầu.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "{ needsSetup: boolean }"
+          }
+        }
+      }
+    },
+    "/api/auth/setup": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Khởi tạo Super Admin đầu tiên",
+        "description": "Chỉ chạy được khi hệ thống mới tinh chưa có tài khoản nào.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password",
+                  "name"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Khởi tạo thành công, trả về Access Token"
+          }
+        }
+      }
+    },
+    "/api/auth/check-org-code": {
+      "get": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Kiểm tra mã tổ chức khả dụng",
+        "description": "Kiểm tra xem mã doanh nghiệp đăng ký đã tồn tại hay chưa.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ available: boolean }"
+          }
+        }
+      }
+    },
+    "/api/auth/register-org": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Đăng ký doanh nghiệp mới (B2B Organization)",
+        "description": "Đăng ký tổ chức doanh nghiệp mới cùng tài khoản quản trị đầu tiên.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "orgCode",
+                  "orgName",
+                  "adminEmail",
+                  "adminPassword",
+                  "adminName"
+                ],
+                "properties": {
+                  "orgCode": {
+                    "type": "string"
+                  },
+                  "orgName": {
+                    "type": "string"
+                  },
+                  "adminEmail": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "adminPassword": {
+                    "type": "string"
+                  },
+                  "adminName": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Đăng ký thành công"
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Đăng ký tài khoản người dùng cá nhân",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password",
+                  "name"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Đăng ký thành công"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Đăng nhập hệ thống (Lấy JWT Access Token)",
+        "description": "Xác thực email và mật khẩu, trả về Bearer JWT token và gán refresh token vào HTTP-only cookie.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "example": "admin@trello.local"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "Admin@123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đăng nhập thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sai thông tin đăng nhập"
+          }
+        }
+      }
+    },
+    "/api/auth/renew": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Làm mới Access Token (Renew Token)",
+        "description": "Sử dụng Refresh Token lưu trong Cookie để cấp mới Access Token.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Cấp token mới thành công"
+          }
+        }
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Yêu cầu khôi phục mật khẩu qua Email",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email khôi phục đã được gửi"
+          }
+        }
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Đặt lại mật khẩu mới bằng Token khôi phục",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "password"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mật khẩu đã được cập nhật"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Đăng xuất tài khoản hiện tại",
+        "description": "Thu hồi phiên đăng nhập hiện tại và xóa Cookie.",
+        "responses": {
+          "200": {
+            "description": "Đăng xuất thành công"
+          }
+        }
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Đăng xuất khỏi tất cả các thiết bị",
+        "description": "Thu hồi toàn bộ Refresh Token của người dùng trên mọi thiết bị.",
+        "responses": {
+          "200": {
+            "description": "Đã đăng xuất toàn bộ phiên"
+          }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": [
+          "Xác thực & Tài khoản (Auth)"
+        ],
+        "summary": "Đổi mật khẩu người dùng đang đăng nhập",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "oldPassword",
+                  "newPassword"
+                ],
+                "properties": {
+                  "oldPassword": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đổi mật khẩu thành công"
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Lấy thông tin tài khoản đang đăng nhập và quyền hạn",
+        "description": "Trả về dữ liệu User, danh sách Roles và tập hợp Permissions đầy đủ để Frontend phân quyền giao diện.",
+        "responses": {
+          "200": {
+            "description": "Dữ liệu người dùng kèm quyền"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Cập nhật thông tin cá nhân (Tên, tiểu sử)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "bio": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Tự xóa tài khoản người dùng",
+        "responses": {
+          "204": {
+            "description": "Tài khoản đã xóa"
+          }
+        }
+      }
+    },
+    "/api/me/avatar": {
+      "post": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Cập nhật ảnh đại diện (Avatar)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "avatarUrl"
+                ],
+                "properties": {
+                  "avatarUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ảnh đại diện đã cập nhật"
+          }
+        }
+      }
+    },
+    "/api/me/settings": {
+      "get": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Lấy cài đặt giao diện & thông báo cá nhân",
+        "responses": {
+          "200": {
+            "description": "Cài đặt người dùng"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Cập nhật cài đặt cá nhân (theme, ngôn ngữ, notifications)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cài đặt đã lưu"
+          }
+        }
+      }
+    },
+    "/api/me/dashboard": {
+      "get": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Lấy tổng quan Dashboard cá nhân",
+        "description": "Tổng hợp các thẻ được giao, việc sắp đến hạn, các bảng đã đánh dấu sao.",
+        "responses": {
+          "200": {
+            "description": "Dashboard tổng hợp"
+          }
+        }
+      }
+    },
+    "/api/me/sessions": {
+      "get": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Lấy danh sách các phiên đăng nhập hoạt động",
+        "responses": {
+          "200": {
+            "description": "Danh sách sessions"
+          }
+        }
+      }
+    },
+    "/api/me/sessions/{id}": {
+      "delete": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Thu hồi phiên đăng nhập cụ thể",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Phiên đã bị hủy"
+          }
+        }
+      }
+    },
+    "/api/users/{id}/profile": {
+      "get": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Xem thông tin Profile công khai của người dùng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thông tin profile"
+          }
+        }
+      }
+    },
+    "/api/users/search": {
+      "get": {
+        "tags": [
+          "Hồ sơ Cá nhân (Me & Users)"
+        ],
+        "summary": "Tìm kiếm người dùng (Autocomplete)",
+        "description": "Tìm kiếm nhanh thành viên qua tên hoặc email để mời vào Workspace hoặc gán thẻ.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách gợi ý người dùng"
+          }
+        }
+      }
+    },
+    "/api/workspaces": {
+      "get": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Lấy danh sách không gian làm việc của người dùng",
+        "responses": {
+          "200": {
+            "description": "Danh sách workspace"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Tạo không gian làm việc mới",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workspace đã tạo"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{id}": {
+      "get": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Xem chi tiết Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết workspace"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Cập nhật Workspace (Tên, mô tả, website)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Xóa Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Workspace đã xóa"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{id}/members": {
+      "get": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Lấy danh sách thành viên trong Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách thành viên"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Thêm thành viên vào Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "member"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thành viên đã được thêm"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{id}/members/{userId}": {
+      "patch": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Cập nhật vai trò thành viên trong Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "member"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật vai trò thành công"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Xóa thành viên khỏi Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Đã xóa thành viên"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{id}/invites": {
+      "get": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Lấy danh sách link mời vào Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách lời mời"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Tạo link mời tham gia Workspace mới",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Link mời đã tạo"
+          }
+        }
+      }
+    },
+    "/api/workspaces/invites/{token}": {
+      "get": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Xem thông tin lời mời theo Token",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thông tin lời mời"
+          }
+        }
+      }
+    },
+    "/api/workspaces/invites/{token}/accept": {
+      "post": {
+        "tags": [
+          "Không gian làm việc (Workspaces)"
+        ],
+        "summary": "Chấp nhận lời mời tham gia Workspace",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Đã gia nhập Workspace thành công"
+          }
+        }
+      }
+    },
+    "/api/boards": {
+      "get": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Lấy danh sách Bảng theo Workspace",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID của Workspace (bắt buộc)"
+          },
+          {
+            "name": "template",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Chỉ lấy bảng mẫu"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách bảng"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Tạo Bảng công việc mới",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "workspaceId",
+                  "name"
+                ],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "background": {
+                    "type": "string"
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "workspace",
+                      "public"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bảng đã tạo"
+          }
+        }
+      }
+    },
+    "/api/boards/{id}": {
+      "get": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Xem chi tiết Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dữ liệu chi tiết bảng"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Cập nhật Bảng (Tên, mô tả, ngày Go-Live, Google Drive link)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Xóa Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Bảng đã xóa"
+          }
+        }
+      }
+    },
+    "/api/boards/{id}/star": {
+      "put": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Đánh dấu sao / Bỏ sao Bảng yêu thích",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "starred"
+                ],
+                "properties": {
+                  "starred": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trạng thái sao đã lưu"
+          }
+        }
+      }
+    },
+    "/api/boards/{id}/copy": {
+      "post": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Nhân bản / Sao chép Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "keepCards": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bảng nhân bản đã tạo"
+          }
+        }
+      }
+    },
+    "/api/boards/{id}/members": {
+      "get": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Lấy danh sách thành viên trong Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách thành viên bảng"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Thêm thành viên vào Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "member",
+                      "observer"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thành viên đã vào bảng"
+          }
+        }
+      }
+    },
+    "/api/boards/{id}/labels": {
+      "get": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Lấy danh sách Nhãn (Labels) của Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách nhãn"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Tạo Nhãn mới cho Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "color"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Nhãn đã tạo"
+          }
+        }
+      }
+    },
+    "/api/boards/{id}/custom-fields": {
+      "get": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Lấy danh sách Custom Fields của Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách trường tùy chỉnh"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Tạo Custom Field mới cho Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "type"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "number",
+                      "date",
+                      "checkbox",
+                      "dropdown"
+                    ]
+                  },
+                  "options": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Trường đã tạo"
+          }
+        }
+      }
+    },
+    "/api/boards/{id}/card-templates": {
+      "get": {
+        "tags": [
+          "Bảng công việc (Boards)"
+        ],
+        "summary": "Lấy danh sách các thẻ mẫu (Card Templates) trong Bảng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách mẫu thẻ"
+          }
+        }
+      }
+    },
+    "/api/lists": {
+      "get": {
+        "tags": [
+          "Danh sách cột (Lists)"
+        ],
+        "summary": "Lấy danh sách các cột theo Board",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách cột"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Danh sách cột (Lists)"
+        ],
+        "summary": "Tạo cột mới trong Bảng",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "boardId",
+                  "name"
+                ],
+                "properties": {
+                  "boardId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cột đã tạo"
+          }
+        }
+      }
+    },
+    "/api/lists/{id}": {
+      "get": {
+        "tags": [
+          "Danh sách cột (Lists)"
+        ],
+        "summary": "Xem chi tiết Cột",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết cột"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Danh sách cột (Lists)"
+        ],
+        "summary": "Cập nhật Cột (Tên, giới hạn WIP, vị trí)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cột đã cập nhật"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Danh sách cột (Lists)"
+        ],
+        "summary": "Xóa Cột",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cột đã xóa"
+          }
+        }
+      }
+    },
+    "/api/lists/{id}/sort": {
+      "post": {
+        "tags": [
+          "Danh sách cột (Lists)"
+        ],
+        "summary": "Sắp xếp thẻ trong cột (theo tên, hạn chót, ngày tạo)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "by"
+                ],
+                "properties": {
+                  "by": {
+                    "type": "string",
+                    "enum": [
+                      "name",
+                      "due",
+                      "created"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thẻ đã sắp xếp"
+          }
+        }
+      }
+    },
+    "/api/lists/{id}/archive-cards": {
+      "post": {
+        "tags": [
+          "Danh sách cột (Lists)"
+        ],
+        "summary": "Lưu trữ toàn bộ thẻ trong cột",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Các thẻ đã được lưu trữ"
+          }
+        }
+      }
+    },
+    "/api/cards": {
+      "get": {
+        "tags": [
+          "Thẻ công việc (Cards)"
+        ],
+        "summary": "Lấy danh sách thẻ theo Board",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách thẻ"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Thẻ công việc (Cards)"
+        ],
+        "summary": "Tạo Thẻ công việc mới",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "listId",
+                  "title"
+                ],
+                "properties": {
+                  "listId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thẻ đã tạo"
+          }
+        }
+      }
+    },
+    "/api/cards/{id}": {
+      "get": {
+        "tags": [
+          "Thẻ công việc (Cards)"
+        ],
+        "summary": "Xem chi tiết Thẻ",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết thẻ"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Thẻ công việc (Cards)"
+        ],
+        "summary": "Cập nhật Thẻ (Mô tả, hạn chót, trạng thái, độ ưu tiên, Jira URL)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "todo",
+                      "doing",
+                      "done",
+                      "blocked"
+                    ]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "startDate": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "jiraUrl": {
+                    "type": "string"
+                  },
+                  "expectedResult": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Thẻ công việc (Cards)"
+        ],
+        "summary": "Xóa Thẻ",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Thẻ đã xóa"
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/move": {
+      "patch": {
+        "tags": [
+          "Thẻ công việc (Cards)"
+        ],
+        "summary": "Di chuyển thẻ sang cột khác hoặc vị trí khác",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "listId",
+                  "position"
+                ],
+                "properties": {
+                  "listId": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thẻ đã di chuyển"
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/watch": {
+      "put": {
+        "tags": [
+          "Thẻ công việc (Cards)"
+        ],
+        "summary": "Bật / Tắt theo dõi thẻ (Nhận thông báo khi có thay đổi)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "watching"
+                ],
+                "properties": {
+                  "watching": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trạng thái theo dõi đã lưu"
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/comments": {
+      "get": {
+        "tags": [
+          "Bình luận & Cảm xúc (Comments & Reactions)"
+        ],
+        "summary": "Lấy danh sách bình luận trong Thẻ",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách bình luận"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bình luận & Cảm xúc (Comments & Reactions)"
+        ],
+        "summary": "Thêm bình luận vào Thẻ",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "body"
+                ],
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  },
+                  "mentions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bình luận đã gửi"
+          }
+        }
+      }
+    },
+    "/api/comments/{id}": {
+      "patch": {
+        "tags": [
+          "Bình luận & Cảm xúc (Comments & Reactions)"
+        ],
+        "summary": "Sửa nội dung bình luận",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "body"
+                ],
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bình luận đã cập nhật"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Bình luận & Cảm xúc (Comments & Reactions)"
+        ],
+        "summary": "Xóa bình luận",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Bình luận đã xóa"
+          }
+        }
+      }
+    },
+    "/api/reactions/toggle": {
+      "post": {
+        "tags": [
+          "Bình luận & Cảm xúc (Comments & Reactions)"
+        ],
+        "summary": "Thả / Gỡ cảm xúc Emoji (Reaction)",
+        "description": "Gắn hoặc gỡ emoji reaction vào Thẻ (cardId) hoặc Bình luận (commentId).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "emoji"
+                ],
+                "properties": {
+                  "cardId": {
+                    "type": "string"
+                  },
+                  "commentId": {
+                    "type": "string"
+                  },
+                  "emoji": {
+                    "type": "string",
+                    "example": "👍"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trạng thái reaction cập nhật"
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/checklists": {
+      "post": {
+        "tags": [
+          "Danh sách kiểm tra (Checklists)"
+        ],
+        "summary": "Tạo Checklist mới trong Thẻ",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Checklist đã tạo"
+          }
+        }
+      }
+    },
+    "/api/checklists/{id}/items": {
+      "post": {
+        "tags": [
+          "Danh sách kiểm tra (Checklists)"
+        ],
+        "summary": "Thêm mục kiểm tra (Item) vào Checklist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mục đã thêm"
+          }
+        }
+      }
+    },
+    "/api/checklist-items/{id}": {
+      "patch": {
+        "tags": [
+          "Danh sách kiểm tra (Checklists)"
+        ],
+        "summary": "Cập nhật trạng thái hoàn thành / tên mục kiểm tra",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "done": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công"
+          }
+        }
+      }
+    },
+    "/api/checklist-items/{id}/convert-to-card": {
+      "post": {
+        "tags": [
+          "Danh sách kiểm tra (Checklists)"
+        ],
+        "summary": "Chuyển mục checklist thành Thẻ việc độc lập",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Thẻ mới đã được tạo từ checklist item"
+          }
+        }
+      }
+    },
+    "/api/executive/overview": {
+      "get": {
+        "tags": [
+          "Tổ chức & Giám sát Lãnh đạo (B2B Enterprise)"
+        ],
+        "summary": "Bảng điều khiển Giám sát Lãnh đạo (Executive Overview)",
+        "description": "Dành riêng cho Lãnh đạo/Giám đốc: xem tổng quan tiến độ, tỷ lệ hoàn thành, ngân sách, cảnh báo rủi ro trên toàn bộ các phòng ban và dự án.",
+        "responses": {
+          "200": {
+            "description": "Dữ liệu Executive Dashboard"
+          }
+        }
+      }
+    },
+    "/api/organizations": {
+      "get": {
+        "tags": [
+          "Tổ chức & Giám sát Lãnh đạo (B2B Enterprise)"
+        ],
+        "summary": "Lấy danh sách các Tổ chức Doanh nghiệp (Super Admin)",
+        "responses": {
+          "200": {
+            "description": "Danh sách tổ chức"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tổ chức & Giám sát Lãnh đạo (B2B Enterprise)"
+        ],
+        "summary": "Tạo Tổ chức Doanh nghiệp mới",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "name"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tổ chức đã tạo"
+          }
+        }
+      }
+    },
+    "/api/boards/{boardId}/milestones": {
+      "get": {
+        "tags": [
+          "Mốc tiến độ & Phụ thuộc Gantt (Gantt & Milestones)"
+        ],
+        "summary": "Lấy danh sách các mốc tiến độ (Milestones)",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách milestones"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Mốc tiến độ & Phụ thuộc Gantt (Gantt & Milestones)"
+        ],
+        "summary": "Tạo mốc tiến độ mới",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "dueDate"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Milestone đã tạo"
+          }
+        }
+      }
+    },
+    "/api/boards/{boardId}/dependencies": {
+      "get": {
+        "tags": [
+          "Mốc tiến độ & Phụ thuộc Gantt (Gantt & Milestones)"
+        ],
+        "summary": "Lấy danh sách quan hệ phụ thuộc công việc (Dependencies)",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách dependencies cho Gantt"
+          }
+        }
+      }
+    },
+    "/api/dependencies": {
+      "post": {
+        "tags": [
+          "Mốc tiến độ & Phụ thuộc Gantt (Gantt & Milestones)"
+        ],
+        "summary": "Tạo liên kết phụ thuộc công việc (Finish-to-Start)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "predecessorId",
+                  "successorId"
+                ],
+                "properties": {
+                  "predecessorId": {
+                    "type": "string"
+                  },
+                  "successorId": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ràng buộc phụ thuộc đã tạo"
+          }
+        }
+      }
+    },
+    "/api/cards/{cardId}/gantt-cascade": {
+      "post": {
+        "tags": [
+          "Mốc tiến độ & Phụ thuộc Gantt (Gantt & Milestones)"
+        ],
+        "summary": "Tính toán đẩy lùi lịch tự động khi kéo thả Gantt (Cascade Push)",
+        "parameters": [
+          {
+            "name": "cardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "daysDiff"
+                ],
+                "properties": {
+                  "daysDiff": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Danh sách các thẻ bị đẩy dời ngày"
+          }
+        }
+      }
+    },
+    "/api/boards/{boardId}/weekly-reports/auto-generate": {
+      "post": {
+        "tags": [
+          "Báo cáo tuần & Điểm danh (Weekly Report & Checkins)"
+        ],
+        "summary": "⚡ Tự động tạo Báo cáo tuần chuẩn mẫu TMS",
+        "description": "Quét toàn bộ tiến độ, thẻ hoàn thành, thẻ chậm trễ, checkin thành viên trong tuần và tự sinh báo cáo chuẩn.",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Báo cáo tuần đã tạo"
+          }
+        }
+      }
+    },
+    "/api/boards/{boardId}/weekly-reports": {
+      "get": {
+        "tags": [
+          "Báo cáo tuần & Điểm danh (Weekly Report & Checkins)"
+        ],
+        "summary": "Lấy danh sách các kỳ báo cáo tuần của Board",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách báo cáo"
+          }
+        }
+      }
+    },
+    "/api/weekly-reports/{id}": {
+      "get": {
+        "tags": [
+          "Báo cáo tuần & Điểm danh (Weekly Report & Checkins)"
+        ],
+        "summary": "Xem chi tiết một bản báo cáo tuần",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết báo cáo"
+          }
+        }
+      }
+    },
+    "/api/weekly-reports/{id}/pdf": {
+      "get": {
+        "tags": [
+          "Báo cáo tuần & Điểm danh (Weekly Report & Checkins)"
+        ],
+        "summary": "Xuất trang in / Tải báo cáo tuần HTML/PDF",
+        "description": "Trả về giao diện HTML in ấn chuyên nghiệp chuẩn mẫu báo cáo TMS để lưu trữ hoặc in PDF.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML printable report"
+          }
+        }
+      }
+    },
+    "/api/boards/{boardId}/checkins": {
+      "post": {
+        "tags": [
+          "Báo cáo tuần & Điểm danh (Weekly Report & Checkins)"
+        ],
+        "summary": "Nộp Check-in / Điểm danh tuần của thành viên",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "weekNumber",
+                  "year",
+                  "progressSummary"
+                ],
+                "properties": {
+                  "weekNumber": {
+                    "type": "number"
+                  },
+                  "year": {
+                    "type": "number"
+                  },
+                  "progressSummary": {
+                    "type": "string"
+                  },
+                  "blockers": {
+                    "type": "string"
+                  },
+                  "nextWeekPlan": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Checkin đã lưu"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Báo cáo tuần & Điểm danh (Weekly Report & Checkins)"
+        ],
+        "summary": "Lấy danh sách check-in tuần của thành viên theo tuần/năm",
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "weekNumber",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách checkins"
+          }
+        }
+      }
+    },
+    "/api/portal/boards/{boardId}": {
+      "get": {
+        "tags": [
+          "Cổng Khách hàng (Client Portal)"
+        ],
+        "summary": "Cổng xem tiến độ dự án dành cho Khách hàng / Đối tác",
+        "description": "Cho phép khách hàng theo dõi tiến độ tổng thể và biểu đồ Gantt an toàn mà không làm lộ các dữ liệu nội bộ.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dữ liệu công khai của board"
+          }
+        }
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Thống kê tổng quan hệ thống",
+        "description": "Tổng số lượng Users, Workspaces, Boards, Cards, Dung lượng lưu trữ.",
+        "responses": {
+          "200": {
+            "description": "Thống kê hệ thống"
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Danh sách toàn bộ người dùng",
+        "responses": {
+          "200": {
+            "description": "Danh sách người dùng"
+          }
+        }
+      }
+    },
+    "/api/admin/permissions": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Danh sách tất cả quyền trong hệ thống RBAC",
+        "responses": {
+          "200": {
+            "description": "Danh sách permissions"
+          }
+        }
+      }
+    },
+    "/api/admin/roles": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Danh sách các vai trò (Roles)",
+        "responses": {
+          "200": {
+            "description": "Danh sách roles"
+          }
+        }
+      }
+    },
+    "/api/admin/workspaces": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Quản lý Workspaces toàn hệ thống",
+        "responses": {
+          "200": {
+            "description": "Danh sách workspace"
+          }
+        }
+      }
+    },
+    "/api/admin/storage": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Xem thông tin dung lượng lưu trữ Object Storage MinIO S3",
+        "responses": {
+          "200": {
+            "description": "Thông tin storage"
+          }
+        }
+      }
+    },
+    "/api/admin/health": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Xem tình trạng sức khỏe hạ tầng nâng cao",
+        "responses": {
+          "200": {
+            "description": "Thông tin health"
+          }
+        }
+      }
+    },
+    "/api/admin/config": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Xem cấu hình tham số hệ thống",
+        "responses": {
+          "200": {
+            "description": "Tham số config"
+          }
+        }
+      }
+    },
+    "/api/admin/audit": {
+      "get": {
+        "tags": [
+          "Quản trị Hệ thống (Admin & RBAC)"
+        ],
+        "summary": "Xem nhật ký kiểm toán an ninh (Audit Log)",
+        "description": "Theo dõi mọi hành vi nhạy cảm: đăng nhập, đổi quyền, xóa dữ liệu.",
+        "responses": {
+          "200": {
+            "description": "Danh sách nhật ký audit"
+          }
+        }
+      }
+    },
+    "/api/admin/backup/settings": {
+      "get": {
+        "tags": [
+          "Sao lưu & Khôi phục (Backup)"
+        ],
+        "summary": "Lấy cấu hình sao lưu & trạng thái liên kết Google Drive",
+        "responses": {
+          "200": {
+            "description": "Cấu hình backup"
+          }
+        }
+      }
+    },
+    "/api/admin/backup/run": {
+      "post": {
+        "tags": [
+          "Sao lưu & Khôi phục (Backup)"
+        ],
+        "summary": "Kích hoạt phiên sao lưu ngay lập tức",
+        "description": "Tạo bản dump database PostgreSQL và nén lưu trữ, tự động đồng bộ Google Drive.",
+        "responses": {
+          "200": {
+            "description": "Phiên sao lưu bắt đầu"
+          }
+        }
+      }
+    },
+    "/api/admin/backup/runs": {
+      "get": {
+        "tags": [
+          "Sao lưu & Khôi phục (Backup)"
+        ],
+        "summary": "Lịch sử các phiên sao lưu",
+        "responses": {
+          "200": {
+            "description": "Lịch sử backup"
+          }
+        }
+      }
+    },
+    "/api/landing": {
+      "get": {
+        "tags": [
+          "Trang đích (Landing Page)"
+        ],
+        "summary": "Lấy nội dung Landing Page công khai",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Dữ liệu trang đích"
+          }
+        }
+      }
+    },
+    "/api/zalo/webhook-info": {
+      "get": {
+        "tags": [
+          "Tích hợp Zalo (Zalo Webhook)"
+        ],
+        "summary": "Lấy thông tin cấu hình Zalo Webhook",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Thông tin webhook"
+          }
+        }
+      }
+    }
+  }
+}
