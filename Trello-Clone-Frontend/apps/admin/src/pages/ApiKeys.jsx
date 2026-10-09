@@ -559,6 +559,7 @@ export function ApiKeysPage() {
           <Table
             columns={adminColumns}
             rows={adminRows}
+            rowKey={(k) => k.id}
             loading={allKeys.isLoading}
             fetching={allKeys.isFetching}
             error={allKeys.isError ? 'Could not load API keys' : null}
@@ -590,6 +591,7 @@ export function ApiKeysPage() {
           <Table
             columns={myColumns}
             rows={myRows}
+            rowKey={(k) => k.id}
             loading={myKeys.isLoading}
             fetching={myKeys.isFetching}
             error={myKeys.isError ? 'Could not load your API keys' : null}

@@ -7,7 +7,7 @@ import { PAGE_SIZE_OPTIONS } from '../lib/usePagination';
 
 export function Table({
   columns, rows, empty = 'No records', emptyDescription, emptyIcon = <FileText size={36} />,
-  loading, fetching, error, onRetry, rowKey, skeletonRows = 6,
+  loading, fetching, error, onRetry, rowKey = (r) => r?.id ?? r?.key, skeletonRows = 6,
 }) {
   const th = {
     textAlign: 'left', padding: '12px 16px', fontFamily: font.text, fontSize: 11,
@@ -79,7 +79,14 @@ export function Table({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => <Row key={rowKey(row)} row={row} columns={columns} td={td} />)
+              rows.map((row, i) => (
+                <Row
+                  key={typeof rowKey === 'function' ? (rowKey(row) ?? i) : (row?.id ?? i)}
+                  row={row}
+                  columns={columns}
+                  td={td}
+                />
+              ))
             )}
           </tbody>
         </table>
