@@ -2,12 +2,38 @@ import { prisma } from "../config/db.js";
 import { redis } from "../config/redis.js";
 import { verifyAccessToken } from "../modules/auth/tokens.js";
 import { getUserRoleKeys } from "../modules/rbac/perms.js";
+import { verifyAndRateLimitKey } from "../modules/apiKeys/apiKeys.service.js";
 import { Unauthorized } from "../lib/errors.js";
 
 const revokedKey = (jti) => `revoked_jti:${jti}`;
 
 export const authenticate = async (req, _res, next) => {
   try {
+    // 1. API Key authentication (for MCP & external automation)
+    const rawApiKey =
+      req.headers["x-api-key"] ||
+      (req.headers.authorization?.startsWith("Bearer trello_live_")
+        ? req.headers.authorization.slice(7).trim()
+        : null);
+
+    if (rawApiKey) {
+      const apiKey = await verifyAndRateLimitKey(rawApiKey);
+      const roles = await getUserRoleKeys(apiKey.userId);
+      req.user = {
+        id: apiKey.user.id,
+        orgId: apiKey.user.orgId,
+        tokenVersion: apiKey.user.tokenVersion,
+        roles,
+      };
+      req.apiKey = {
+        id: apiKey.id,
+        name: apiKey.name,
+        scopes: apiKey.scopes,
+      };
+      return next();
+    }
+
+    // 2. Standard JWT Bearer token authentication
     const header = req.headers.authorization;
     if (!header?.startsWith("Bearer ")) {
       throw Unauthorized("NO_TOKEN", "Missing access token");

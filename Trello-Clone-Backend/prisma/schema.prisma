@@ -41,6 +41,8 @@ model User {
   boardMembers  BoardMember[]
   reactions     Reaction[]
   memberCheckins MemberWeeklyCheckin[]
+  apiKeys       ApiKey[]
+  revokedApiKeys ApiKey[]      @relation("ApiKeyRevoker")
 
   @@index([orgId])
   @@map("users")
@@ -663,5 +665,31 @@ model MemberWeeklyCheckin {
   @@unique([boardId, userId, weekNumber, year])
   @@index([boardId, weekNumber, year])
   @@map("member_weekly_checkins")
+}
+
+// ===== API Keys (MCP & External Integrations) =====
+
+model ApiKey {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String    @db.VarChar(120)
+  keyHash         String    @unique @map("key_hash") @db.Char(64)
+  keyPrefix       String    @map("key_prefix") @db.VarChar(24)
+  scopes          String[]  @default([])
+  userId          String    @map("user_id") @db.Uuid
+  rateLimit       Int       @default(120) @map("rate_limit")
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(6)
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason   String?   @map("revoked_reason") @db.VarChar(255)
+  revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revokedByUser   User?     @relation("ApiKeyRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
 }
 

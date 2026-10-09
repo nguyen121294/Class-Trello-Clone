@@ -34,6 +34,7 @@ import { milestonesRouter } from "./modules/milestones/milestones.routes.js";
 import { dependenciesRouter } from "./modules/dependencies/dependencies.routes.js";
 import { weeklyReportRouter } from "./modules/weeklyReport/weeklyReport.routes.js";
 import { clientPortalRouter } from "./modules/clientPortal/clientPortal.routes.js";
+import { apiKeysRouter } from "./modules/apiKeys/apiKeys.routes.js";
 
 export function createApp() {
   const app = express();
@@ -86,6 +87,7 @@ export function createApp() {
   app.use("/api", dependenciesRouter);
   app.use("/api", weeklyReportRouter);
   app.use("/api", clientPortalRouter);
+  app.use("/api/api-keys", apiKeysRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
