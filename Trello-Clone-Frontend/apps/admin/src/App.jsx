@@ -20,6 +20,7 @@ import { StoragePage } from './pages/Storage';
 import { AuditPage } from './pages/Audit';
 import { ProfilePage } from './pages/Profile';
 import { SettingsPage } from './pages/Settings';
+import { ApiKeysPage } from './pages/ApiKeys';
 import { NotFoundPage } from './pages/NotFound';
 
 export function App() {
@@ -90,6 +91,14 @@ export function App() {
           element={
             <RequirePermission role="super_admin">
               <RolesPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/api-keys"
+          element={
+            <RequirePermission role="super_admin">
+              <ApiKeysPage />
             </RequirePermission>
           }
         />

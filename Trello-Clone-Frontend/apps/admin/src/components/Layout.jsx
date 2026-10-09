@@ -6,7 +6,7 @@ import {
 } from '@trello/ui';
 import {
   LayoutDashboard, Users, KanbanSquare, ScrollText, HardDrive,
-  LogOut, Shield, Menu, Search, User, Settings, ShieldCheck, Activity, SlidersHorizontal, Megaphone, CloudUpload,
+  LogOut, Shield, Menu, Search, User, Settings, ShieldCheck, Activity, SlidersHorizontal, Megaphone, CloudUpload, Key,
 } from 'lucide-react';
 import { meProfile } from '../lib/api';
 import { APP_VERSION } from '../lib/version';
@@ -27,6 +27,7 @@ const NAV_GROUPS = [
       { to: '/workspaces', label: 'Workspaces', Icon: KanbanSquare },
       { to: '/roles', label: 'Roles & Permissions', Icon: ShieldCheck, role: 'super_admin' },
       { to: '/storage', label: 'Storage', Icon: HardDrive, perm: 'storage.view' },
+      { to: '/api-keys', label: 'API Keys', Icon: Key, role: 'super_admin' },
     ],
   },
   {
